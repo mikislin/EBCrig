@@ -17,6 +17,13 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, FigureCanvasAgg
 from matplotlib.figure import Figure
 from random import randint
 
+####### LED PWM SETUP #######
+LED_PIN = 18               # BCM pin for LED
+GPIO.setmode(GPIO.BCM)     # use Broadcom pin numbering
+GPIO.setup(LED_PIN, GPIO.OUT)
+led_pwm = GPIO.PWM(LED_PIN, 1000)  # 1 kHz PWM
+led_pwm.start(0)                  # start at 0% duty (off)
+
 # GLOBAL VARS/plotting functions
 n2show = 4;
 cmap_r = np.zeros((n2show,4));cmap_r[:,0]=np.linspace(0.1,1,n2show);cmap_r[:,3]=1#
@@ -55,9 +62,6 @@ def update_plot(ax,vls=np.nan,rot_time=np.nan,rot=np.nan,eb_time=np.nan,eb=np.na
     else:
         [z[0][0].set(color=z[1]) for z in zip(h,cmap_r)]
         
-    #Here we will be Handling the eye plots
-        
-        
     return h,vh
     
 def clear_plot(ax):
@@ -79,9 +83,7 @@ camera_layout = [
     [sg.Image(filename="", key="-IMAGE-",size=(300,240))],
     [sg.Button("Stream",size=(9,1)),sg.Button("End Stream",size=(9,1)),
     sg.Button("Save Stream",size=(9,1)),sg.Button("End Recording",size=(9,1))],
-    #[sg.Button("End Program", size=(10, 1))]
 ]
-
 trial_layout = [
     ##Arduino, file name, and session controls
     [sg.Button("Start Session",size=(14,1),button_color=('white','springgreen4')),
@@ -110,14 +112,16 @@ trial_layout = [
         [sg.T("ITI high (ms)"),sg.Input(size=(10,1),key="ITIhigh",default_text="1500")],
         [sg.T("Percent US"),sg.Input(size=(10,1),key="percentUS",default_text="0")],
         [sg.T("US duration (ms)"),sg.Input(size=(10,1),key="USdur",default_text="30")]
-    ],vertical_alignment='top')
-    ],
-    [sg.Button("Upload to Microcontroller"),sg.Button("Current Microcontroller settings")]
+    ],vertical_alignment='top')],
+    [sg.Button("Upload to Microcontroller"),sg.Button("Current Microcontroller settings")],
+    [sg.Text("Background LED intensity (0-100)"),
+     sg.Input(key="LED_INTENSITY", size=(5,1), default_text="0"),
+     sg.Button("Set LED"), sg.Button("LED Off")]
 ]
 
 graph_layout = [
-	[sg.Canvas(size=(300, 200),
-		key='graph')]
+    [sg.Canvas(size=(300, 200),
+        key='graph')]
 ]
 
 exit_layout = [
@@ -126,11 +130,10 @@ exit_layout = [
 
 ##full GUI layout
 layout = [
-    
     [
         [sg.Frame("Camera controls",camera_layout,title_location='n',element_justification='c'),
         sg.Frame("Arduino session controls",trial_layout,title_location='n',element_justification='l')],
-		[sg.Frame("Graph test",graph_layout,title_location='n',element_justification = 'c'),
+        [sg.Frame("Graph test",graph_layout,title_location='n',element_justification = 'c'),
         sg.Frame("Exit test",exit_layout)]
     ]
 ]
@@ -156,14 +159,12 @@ colors = cm.jet(np.linspace(0,1,5))#We will ultimately show up to five traces at
 vls = [float(values['preCSdur']),float(values['CSdur']),float(values['USdur'])]
 rot=np.nan;rot_time=np.nan;eb=np.nan;eb_time=np.nan;h=[];vh=[];
 
-
 ####Handling the GUI, rig, and piCamera####
 #Loop booleans and variables
 streaming = False#state of camera output
 frame = None#current frame for output to GUI video
 dispNow = True#to display current fame on GUI video
 lastpicTime = 0#timing when next frame should be output to GUI video
-
 #What to do if keyboard interrupt called
 def signal_handler(sig, frame):
     if vs is not None:
@@ -189,32 +190,21 @@ while True:
     if streaming:
         now = time.perf_counter()
         dispTime = now - lastpicTime
-        #Only update frame once every ~50 ms
         if dispTime>0.05:
             frame = vs.read()
             lastpicTime = time.perf_counter()
-        #And this is to update the plot
-        # if vs.update_graph.cam_ready:
-            #Update the eyeblink plot
-            # eb,eb_time = vs.data_handler.get_cam()
-            # update_plot(ax,vls,rot=rot,rot_time=rot_time,eb=eb,eb_time=eb_time)
-            # fig_agg.draw()
             
     #Here tell the GUI to look for a flag to update the current plot
     if rig.data_handler.rotary_ready:
-        #Update the roatary plot
         rot,rot_time = rig.data_handler.get_rotary()
         rig.data_handler.rotary_ready = False
         h,vh = update_plot(ax,vls,rot=rot,rot_time=rot_time,h=h,vh=vh)
         fig_agg.draw()
     
-
-
     ##Button options, left panel
     if event == "End Program" or event == sg.WIN_CLOSED:
         break
     elif event == "Stream":
-        #Only call camera first time stream activated
         if not streaming:
             if vs is None:
                 vs = pvid.piCamHandler()
@@ -231,21 +221,13 @@ while True:
         frame = None
         print("End Stream")
     elif event == "Save Stream":
-        if streaming:
-            if not vs.saving.value:
-                vs.guiStartRecording()
-                print("Save Stream")
-            elif vs.saving.value:
-                print("Stream is already recording")
-        else:
-            print("No stream open")
+        if streaming and not vs.saving.value:
+            vs.guiStartRecording()
+            print("Save Stream")
     elif event == "End Recording":
         if streaming and vs.saving.value:
             vs.guiStopRecording()
             print("End Recording")
-        else:
-            print("Not recording")
-    
     ##Button options right panel
     elif event == "Start Session":
         rig.startSession()
@@ -272,13 +254,23 @@ while True:
                 rig.settrial(item[0],item[1])
                 time.sleep(0.001)
                 
-        #Here update the vertical line stim indicators in case user passes in new values
         vls = [float(values['preCSdur']),float(values['CSdur']),float(values['USdur'])]
-        
-        
     elif event == "Current Microcontroller settings":
         rig.GetArduinoState()
     
+    # LED controls
+    elif event == "Set LED":
+        try:
+            intensity = float(values['LED_INTENSITY'])
+            intensity = max(0, min(100, intensity))
+            led_pwm.ChangeDutyCycle(intensity)
+            print(f"LED intensity set to {intensity}%")
+        except ValueError:
+            print("Invalid intensity value")
+    elif event == "LED Off":
+        led_pwm.ChangeDutyCycle(0)
+        print("LED turned off")
+
     ##Process and display the current frame capture in GUI if streaming
     if streaming and frame is not None:
         if len(frame)>0:
