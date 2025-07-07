@@ -93,8 +93,10 @@ class MovieSaver(mp.Process):
                 while not self.frame_buffer.empty():
                     ts,frame = self.frame_buffer.get(block=False)
                     datalist.append((ts,frame))
-                pickle.dump(datalist,fi)
-                fi.close()
+                if fi!=None:
+                    if not fi.closed:
+                        pickle.dump(datalist,fi)
+                        fi.close()
                 self.saving_complete.value = True
                 self.flushing.value = False
                 print('Finished saving')
@@ -113,7 +115,7 @@ class MovieSaver(mp.Process):
             
 
 class PiVideoStream(mp.Process):
-    def __init__(self,output=None,resolution=(160, 128),framerate=60,frame_buffer=None,finished=None,stream_flag=None,saving=None,sync_flag=None,startAcq=None,triggerTime=None,piStreamDone=None,kill_flag=None,**kwargs):
+    def __init__(self,output=None,resolution=(640, 480),framerate=100,frame_buffer=None,finished=None,stream_flag=None,saving=None,sync_flag=None,startAcq=None,triggerTime=None,piStreamDone=None,kill_flag=None,**kwargs):
         #Note output could be an instantiation of ImgOutput or any file-type object
         #with a write method that returns each frame capture as the write
         super(PiVideoStream,self).__init__()
@@ -127,7 +129,7 @@ class PiVideoStream(mp.Process):
         # set camera parameters
         self.camera.resolution = resolution
         self.camera.framerate = framerate
-        self.camera.rotation = 180
+        self.camera.rotation = 0 #180
         # consistent pictures and timing on timestamps
         self.camera.iso = 800
         time.sleep(1)
@@ -184,14 +186,14 @@ class PiVideoStream(mp.Process):
         
         
 class piCamHandler():
-    def __init__(self,resolution=(160,128),framerate=60): #,sync_flag=None
+    def __init__(self,resolution=(640,480),framerate=100): #,sync_flag=None
         #Params for picamera
         self.resolution = resolution
         self.framerate = framerate
         
         #Shared variables for acquisition and saving processes
         self.manager = mp.Manager()
-        self.fname = self.manager.Value(ctypes.c_char_p, time.strftime("%Y%m%d") + '_'+ time.strftime("%H%M%S") + '_'+ 'rig.data')
+        self.fname = self.manager.Value(ctypes.c_char_p,"noname.data")
         self.fStub = self.manager.Value(ctypes.c_char_p,"noStub")
         self.frame_buffer = mp.Queue()
         self.finished = mp.Event()
@@ -222,7 +224,7 @@ class piCamHandler():
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
         
     def interrupt_in(self,channel):
-        if GPIO.input(self.on_pin):
+        if GPIO.input(self.on_pin) and not self.saving.value:
             self.triggerTime.value = time.perf_counter()
             self.trialNum = self.trialNum + 1
             trial_str = str(self.trialNum)
@@ -258,7 +260,6 @@ class piCamHandler():
         if not self.startSave.value:
             self.startSave.value = True
             self.startAcq.value = True
-            self.fname.value = time.strftime("%Y%m%d") +  '_'+ time.strftime("%H%M%S") + 'rig.data'
             self.piStream.camera.annotate_text = ''
             self.triggerTime.value = time.perf_counter()
         else:
