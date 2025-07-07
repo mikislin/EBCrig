@@ -5,24 +5,24 @@ import os.path
 from threading import Thread
 import threading
 import sys
+from data_handler import data_handler                      
 
      
 #
 #Serial and initialization of object settings
-serialStr = '/dev/ttyACM0' # ttyACM0
+serialStr = '/dev/ttyACM0' #
 altSerialStr = '/dev/ttyACM1' #alternative Arduino port
 
 options = {}
 options['serial'] = {}
 options['serial']['port'] = serialStr
-options['serial']['baud'] = 115200 #57600
+options['serial']['baud'] = 115200
 
 trial = {}
 trial['isDTSC'] = 1 #1 = DTSC, 0  = DEC
 trial['fStub'] = ''
 trial['filePath'] = '/home/rpi4EBC/DataEBC/'
 trial['fileName'] = ''
-trial['fileVName'] = ''
 trial['sessionNumber'] = 0
 trial['sessionDur'] = 0 # (trialDur * numTrial)
 
@@ -48,6 +48,7 @@ trial['CS_USinterval'] = trial['CSdur'] - trial['USdur']
       
 class arduinoRig():
     def __init__(self):
+        self.data_handler = data_handler()#for reporting real-time results for plotting                                                                           
         self.animalID = 'noname'
         self.trial = trial
         self.fnameReady = False
@@ -69,7 +70,9 @@ class arduinoRig():
         #serial is blocking. we need serial reads druing trials to run in a separate thread so we do not block user interface
         self.kill_flag = False
         self.flushing = False
-        self.trialRunning = 0
+        self.sessionRunning = False
+        self.trialRunning = False
+        self.dat = []#Will hold data for realtime plotting
         thread = Thread(target=self.background_thread, args=())
         thread.daemon  = True; #as a daemon the thread will stop when *this stops
         thread.start()
@@ -84,43 +87,60 @@ class arduinoRig():
     def background_thread(self):
         '''Background thread to continuously read serial. Dumps to file during a trial'''
         while True:
-            if self.trialRunning:
+            if self.sessionRunning or self.flushing:
                 string = self.ser.read(self.ser.in_waiting)
                 if len(string)>0:
                     string = string.decode('utf-8')
                     print(string,end='')
                     sys.stdout.write('')
                     self.NewSerialData(string)
-                if self.flushing:
-                    self.trialRunning = False
+                elif self.flushing and self.filePtr:
+                    time.sleep(0.1)
+                    self.ser.flush()
+                    self.sessionRunning = False
                     self.flushing = False
+                    self.filePtr.close()
+                    self.filePtr = None
                 if self.exit_event.is_set():
                     break
-            time.sleep(0.05)
+            time.sleep(0.1)
 
     def NewSerialData(self, string):
-        '''
-        we have received new serial data. Write to the file
-        special case is when we receive startSession or stopSession
-        '''
-        #we want 'millis,event,val', if serial data does not match this then do nothing
-        #try:
+        #Handling incoming strings from microcontroller
         if len(string)>0:
             #save to file
             if self.filePtr:
                 self.filePtr.write(string)
-            
-            if 'stopSession' in string:
+            #Look for keywords in last two chunks
+            try:
+                cat_string = oldstring + string
+            except:
+                cat_string = string
+            #detect session stopping
+            if 'stopSession' in cat_string:
                 self.flushing = True
                 print('arduinoRig.NewSerialData() detected session stopping')
+            
+            if 'startTrial' in cat_string and not self.trialRunning:
+                self.trial['trialNumber'] += 1
+                self.dat = cat_string
+                self.trialRunning = True
                 
-            if not self.trialRunning and self.filePtr:
-                self.filePtr.close()
-                self.filePtr = None
-                # self.stopSession()
+            if self.trialRunning:
+                self.dat = self.dat + string
+                
+            if 'stopTrial' in cat_string:
+                self.data_handler.parse_rotary(self.dat)
+                self.data_handler.rotary_ready = True
+                self.trialRunning = False
+                self.dat = []
+                
 
+            #save current string as oldstring
+            oldstring = string
+            
     def startSession(self):
-        if self.trialRunning:
+        if self.sessionRunning:
             print('Warning: session is already running')
             return 0
             
@@ -129,33 +149,19 @@ class arduinoRig():
         
         self.newtrialfile(0)
         
-        self.trialRunning = 1
+        self.sessionRunning = True
         self.ser.write('<startSession>'.encode())#
         print('arduinoRig.startSession()')
         
         return 1
         
-    def startTrial(self):
-        if not self.trialRunning:
-            print('Warning: startTrial() trial is not running')
-            return 0
-            
-        self.trial['trialNumber'] += 1
-                
-        self.newtrialfile(self.trial['trialNumber'])
-        
-        return 1
         
     def stopSession(self):
-        if self.filePtr:
-            self.filePtr.close()
-            self.filePtr = None
-            
-        self.trialRunning = 0
-
+        # Send stop command to microcontroller, print report
         self.ser.write('<stopSession>'.encode())
         print('arduinoRig.stopSession()')
         
+        self.flushing = True
         self.kill_flag = False
         self.fnameReady = False
         
@@ -180,13 +186,11 @@ class arduinoRig():
         
         sessionFileStub = sessionStr + datetimeStr
         sessionFileName = sessionFileStub + 'rig.txt'
-        sessionVFileName = sessionFileStub + 'rig.data'
         sessionFilePath = thisSavePath + sessionFileName
         
         self.trial['fStub'] = thisSavePath + sessionFileStub
         self.trial['filePath'] = thisSavePath
         self.trial['fileName'] = sessionFileName
-        self.trial['fileVName'] = sessionVFileName
         
         #get arduino parameters and let gui know fStub is ready
         if trialNumber==0:
@@ -216,7 +220,7 @@ class arduinoRig():
         '''
         set values for arduino from param dict
         '''
-        if self.trialRunning:
+        if self.sessionRunning:
             print('Warning: trial is already running')
             return 0
 
@@ -233,7 +237,7 @@ class arduinoRig():
             print('\tERROR: arduinoRig:settrial() did not find', key, 'in trial dict')
         
     def GetArduinoState(self):
-        if self.trialRunning:
+        if self.sessionRunning:
             print('Warning: trial is already running')
             return 0
 
@@ -245,7 +249,7 @@ class arduinoRig():
         return stateList
         
     def emptySerial(self):
-        if self.trialRunning:
+        if self.sessionRunning:
             print('Warning: trial is already running')
             return 0
 
@@ -264,7 +268,7 @@ class arduinoRig():
         return theRet
         
     def setserialport(self, newPort):
-        if self.trialRunning:
+        if self.sessionRunning:
             print('Warning: trial is already running')
             return 0
 
@@ -277,7 +281,7 @@ class arduinoRig():
             return 0
             
     def checkserialport(self):
-        if self.trialRunning:
+        if self.sessionRunning:
             print('Warning: trial is already running')
             return 0
 
@@ -291,7 +295,7 @@ class arduinoRig():
             return 0, port
             
     def checkarduinoversion(self):
-        if self.trialRunning:
+        if self.sessionRunning:
             print('Warning: trial is already running')
             return 0
 
