@@ -9,7 +9,13 @@ import sys
 import signal
 from arduinoRig import arduinoRig
 
-    
+####### LED PWM SETUP #######
+LED_PIN = 18               # BCM pin for LED
+GPIO.setmode(GPIO.BCM)     # use Broadcom pin numbering
+GPIO.setup(LED_PIN, GPIO.OUT)
+led_pwm = GPIO.PWM(LED_PIN, 1000)  # 1 kHz PWM
+led_pwm.start(0)                  # start at 0% duty (off)
+
 ####Build the GUI####
 sg.theme("DarkAmber")#BluePurple also has a nice asthetic
 
@@ -51,6 +57,10 @@ trial_layout = [
         [sg.T("US duration (ms)"),sg.Input(size=(10,1),key="USdur",default_text="50")]
     ],vertical_alignment='top')
     ],
+    # LED intensity input and control
+    [sg.Text("LED Intensity (0-100)%"),
+     sg.Input(key="LED_INTENSITY",size=(5,1),default_text="0"),
+     sg.Button("Set LED"),sg.Button("LED Off")],
     [sg.Button("Upload to Arduino"),sg.Button("Current Arduino settings")]
 ]
 
@@ -60,7 +70,6 @@ exit_layout = [
 
 ##full GUI layout
 layout = [
-    
     [
         [sg.Frame("Camera controls",camera_layout,title_location='n',element_justification='c'),
         sg.Frame("Arduino session controls",trial_layout,title_location='n',element_justification='l')],
@@ -88,6 +97,9 @@ def signal_handler(sig, frame):
         print("vs.end()")
     rig.end()
     print("\nProgram ended")
+    # Stop LED PWM and reset GPIO
+    led_pwm.stop()
+    GPIO.cleanup()
     sys.exit(0)
 signal.signal(signal.SIGINT,signal_handler)
 
@@ -167,6 +179,19 @@ while True:
     elif event == "Current Arduino settings":
         rig.GetArduinoState()
     
+    # LED controls
+    elif event == "Set LED":
+        try:
+            intensity = float(values['LED_INTENSITY'])
+            intensity = max(0, min(100, intensity))  # clamp 0-100
+            led_pwm.ChangeDutyCycle(intensity)
+            print(f"LED intensity set to {intensity}%")
+        except ValueError:
+            print("Invalid intensity value")
+    elif event == "LED Off":
+        led_pwm.ChangeDutyCycle(0)
+        print("LED turned off")
+    
     ##Process and display the current frame capture in GUI if streaming
     if streaming and frame is not None:
         if len(frame)>0:
@@ -185,4 +210,7 @@ if vs is not None:
     print("vs.end()")
 rig.end()
 print("rig.end()")
+# Stop LED PWM and reset GPIO
+led_pwm.stop()
+GPIO.cleanup()
 print('Program ended')
