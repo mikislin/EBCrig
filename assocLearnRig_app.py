@@ -1,3 +1,4 @@
+####This creates the GUI which subsequently instantiates all hardware objects
 import PySimpleGUI as sg
 from picamera import PiCamera
 import RPi.GPIO as GPIO
@@ -9,19 +10,72 @@ import sys
 import signal
 from arduinoRig import arduinoRig
 
-####### LED PWM SETUP #######
-LED_PIN = 18               # BCM pin for LED
-GPIO.setmode(GPIO.BCM)     # use Broadcom pin numbering
-GPIO.setup(LED_PIN, GPIO.OUT)
-led_pwm = GPIO.PWM(LED_PIN, 1000)  # 1 kHz PWM
-led_pwm.start(0)                  # start at 0% duty (off)
+#For realtime visualizations
+from matplotlib import cm
+import matplotlib.pyplot as pl
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, FigureCanvasAgg
+from matplotlib.figure import Figure
+from random import randint
 
+# GLOBAL VARS/plotting functions
+n2show = 4;
+cmap_r = np.zeros((n2show,4));cmap_r[:,0]=np.linspace(0.1,1,n2show);cmap_r[:,3]=1#
+cmap_e = np.zeros((n2show,4));cmap_e[:,1]=np.linspace(0.1,1,n2show);cmap_e[:,2]=np.linspace(0,1,1,n2show);cmap_e[:,3]=1
+def draw_figure(canvas, figure, loc=(0, 0)):
+    figure_canvas_agg = FigureCanvasTkAgg(figure, canvas)
+    figure_canvas_agg.draw()
+    figure_canvas_agg.get_tk_widget().pack(side='top', fill='both', expand=1)
+    return figure_canvas_agg
+    
+def update_plot(ax,vls=np.nan,rot_time=np.nan,rot=np.nan,eb_time=np.nan,eb=np.nan,h=np.nan,vh=np.nan):#Adding whichever elements are available to the plot    
+    #Handling vertical line stimulus plots
+    ymin,ymax = ax.get_ylim()
+    if not vh:
+        vh = [ax.vlines(vls[0],ymin,ymax,linestyle='--',color='black')]
+        vh.append(ax.vlines(vls[0]+vls[1]-vls[2],ymin,ymax,linestyle='--',color='black'))
+        vh.append(ax.vlines(vls[0]+vls[1],ymin,ymax,linestyle='--',color='black'))
+        
+    if np.max(rot)>ymax or np.min(rot)<ymin:
+        [v.remove() for v in vh]
+        ymax = np.max([np.max(rot),ymax]);ymin = np.min([np.min(rot),ymin])
+        vh = [ax.vlines(vls[0],ymin,ymax,linestyle='--',color='black')]
+        vh.append(ax.vlines(vls[0]+vls[1]-vls[2],ymin,ymax,linestyle='--',color='black'))
+        vh.append(ax.vlines(vls[0]+vls[1],ymin,ymax,linestyle='--',color='black'))
+     
+    #Handling the rotary plots    
+    if not h and not np.isnan(rot).all():
+        h = [ax.plot(rot_time,rot)]
+    elif not np.isnan(rot).all():
+        h.append(ax.plot(rot_time,rot))
+    
+    if len(h)>n2show:
+        h[0][0].remove()
+        h.remove(h[0])
+        [z[0][0].set(color=z[1]) for z in zip(h,cmap_r)]
+    else:
+        [z[0][0].set(color=z[1]) for z in zip(h,cmap_r)]
+        
+    #Here we will be Handling the eye plots
+        
+        
+    return h,vh
+    
+def clear_plot(ax):
+    #Clear plot and axis handles
+    ax.cla()
+    ax.grid()
+    h=[];vh=[]
+    return h,vh
+    
+
+    
 ####Build the GUI####
 sg.theme("DarkAmber")#BluePurple also has a nice asthetic
 
 ###Define the window layout
 camera_layout = [
     ##Camera control and display panels
+    [],
     [sg.Image(filename="", key="-IMAGE-",size=(300,240))],
     [sg.Button("Stream",size=(9,1)),sg.Button("End Stream",size=(9,1)),
     sg.Button("Save Stream",size=(9,1)),sg.Button("End Recording",size=(9,1))],
@@ -31,7 +85,8 @@ camera_layout = [
 trial_layout = [
     ##Arduino, file name, and session controls
     [sg.Button("Start Session",size=(14,1),button_color=('white','springgreen4')),
-     sg.Button("Stop Session",size=(14,1),button_color=('white','firebrick3'))],
+     sg.Button("Stop Session",size=(14,1),button_color=('white','firebrick3')),
+     sg.Text("Trial",size=(18,1), key='trialNum')],
     [
         sg.Text("Animal ID"),
         sg.Input(size=(25,1),key="Animal"),
@@ -44,24 +99,25 @@ trial_layout = [
     ],
     [sg.HSeparator()],
     [sg.Column([
-        [sg.T("Number trials"),sg.Input(size=(10,1),key="numTrial",default_text="100")],
-        [sg.T("ITI low (ms)"),sg.Input(size=(10,1),key="ITIlow",default_text="5000")],
+        [sg.T("Number trials"),sg.Input(size=(10,1),key="numTrial",default_text="110")],
+        [sg.T("ITI low (ms)"),sg.Input(size=(10,1),key="ITIlow",default_text="1000")],
         [sg.T("Percent CS"),sg.Input(size=(10,1),key="percentCS",default_text="10")],
         [sg.T("CS duration (ms)"),sg.Input(size=(10,1),key="CSdur",default_text="250")],
-        [sg.T("Pre-CS duration (ms)"),sg.Input(size=(10,1),key="preCSdur",default_text="100")]
+        [sg.T("Pre-CS duration (ms)"),sg.Input(size=(10,1),key="preCSdur",default_text="200")]
     ]),
     sg.Column([
         [sg.T("Trial duration (ms)"),sg.Input(size=(10,1),key="trialDur",default_text="1000")],
-        [sg.T("ITI high (ms)"),sg.Input(size=(10,1),key="ITIhigh",default_text="20000")],
+        [sg.T("ITI high (ms)"),sg.Input(size=(10,1),key="ITIhigh",default_text="1500")],
         [sg.T("Percent US"),sg.Input(size=(10,1),key="percentUS",default_text="0")],
-        [sg.T("US duration (ms)"),sg.Input(size=(10,1),key="USdur",default_text="50")]
+        [sg.T("US duration (ms)"),sg.Input(size=(10,1),key="USdur",default_text="30")]
     ],vertical_alignment='top')
     ],
-    # LED intensity input and control
-    [sg.Text("LED Intensity (0-100)%"),
-     sg.Input(key="LED_INTENSITY",size=(5,1),default_text="0"),
-     sg.Button("Set LED"),sg.Button("LED Off")],
-    [sg.Button("Upload to Arduino"),sg.Button("Current Arduino settings")]
+    [sg.Button("Upload to Microcontroller"),sg.Button("Current Microcontroller settings")]
+]
+
+graph_layout = [
+	[sg.Canvas(size=(300, 200),
+		key='graph')]
 ]
 
 exit_layout = [
@@ -70,17 +126,35 @@ exit_layout = [
 
 ##full GUI layout
 layout = [
+    
     [
         [sg.Frame("Camera controls",camera_layout,title_location='n',element_justification='c'),
         sg.Frame("Arduino session controls",trial_layout,title_location='n',element_justification='l')],
-        exit_layout
+		[sg.Frame("Graph test",graph_layout,title_location='n',element_justification = 'c'),
+        sg.Frame("Exit test",exit_layout)]
     ]
 ]
 
 ####Create the window, arduinoRig, and piStream####
 window = sg.Window("Associative Learning control GUI", layout)
 rig = arduinoRig()
+event, values = window.read(timeout=0)
+current_trial = rig.trial['trialNumber']
+window['trialNum'].update("Trial number = "+str(current_trial))
 vs = None
+
+# draw the initial plot in the window
+graph_elem = window['graph']
+graph = graph_elem.TKCanvas
+fig = Figure(figsize=[4,3])
+ax = fig.add_subplot(111)
+ax.set_xlabel("time")
+ax.set_ylabel("some stuff (A.U.)")
+ax.grid()
+fig_agg = draw_figure(graph, fig)
+colors = cm.jet(np.linspace(0,1,5))#We will ultimately show up to five traces at once
+vls = [float(values['preCSdur']),float(values['CSdur']),float(values['USdur'])]
+rot=np.nan;rot_time=np.nan;eb=np.nan;eb_time=np.nan;h=[];vh=[];
 
 
 ####Handling the GUI, rig, and piCamera####
@@ -97,14 +171,16 @@ def signal_handler(sig, frame):
         print("vs.end()")
     rig.end()
     print("\nProgram ended")
-    # Stop LED PWM and reset GPIO
-    led_pwm.stop()
-    GPIO.cleanup()
     sys.exit(0)
 signal.signal(signal.SIGINT,signal_handler)
 
 ####GUI read loop
 while True:
+
+    #Update the trial counter where necessary
+    if current_trial != rig.trial['trialNumber']:
+        current_trial = rig.trial['trialNumber']
+        window['trialNum'].update("Trial Number = "+str(current_trial))
 
     #Get whatever input the user applied to GUI
     event, values = window.read(timeout=0)
@@ -113,11 +189,27 @@ while True:
     if streaming:
         now = time.perf_counter()
         dispTime = now - lastpicTime
-        #Only update frame once every ~20 ms
+        #Only update frame once every ~50 ms
         if dispTime>0.05:
             frame = vs.read()
             lastpicTime = time.perf_counter()
+        #And this is to update the plot
+        # if vs.update_graph.cam_ready:
+            #Update the eyeblink plot
+            # eb,eb_time = vs.data_handler.get_cam()
+            # update_plot(ax,vls,rot=rot,rot_time=rot_time,eb=eb,eb_time=eb_time)
+            # fig_agg.draw()
+            
+    #Here tell the GUI to look for a flag to update the current plot
+    if rig.data_handler.rotary_ready:
+        #Update the roatary plot
+        rot,rot_time = rig.data_handler.get_rotary()
+        rig.data_handler.rotary_ready = False
+        h,vh = update_plot(ax,vls,rot=rot,rot_time=rot_time,h=h,vh=vh)
+        fig_agg.draw()
     
+
+
     ##Button options, left panel
     if event == "End Program" or event == sg.WIN_CLOSED:
         break
@@ -157,6 +249,9 @@ while True:
     ##Button options right panel
     elif event == "Start Session":
         rig.startSession()
+        h,vh = clear_plot(ax)
+        h,vh = update_plot(ax,vls,h=h,vh=vh)
+        fig_agg.draw()
         while not rig.fnameReady:
             pass
         fStub = rig.getFstub()
@@ -167,41 +262,32 @@ while True:
     elif event == "Set":
         rig.animalID = values['Animal']
         print("Set animalID: ",values['Animal'])
-    elif event == "Upload to Arduino":
+    elif event == "Upload to Microcontroller":
         if values['DTSC']:
             rig.settrial('isDTSC',1)
-        else:
+        elif values['DEC']:
             rig.settrial('isDTSC',0)
         for item in values.items():
-            if item[0] not in ['Animal','DTSC','DEC']:
+            if item[0] not in ['Animal','DTSC','DEC','graph']:
                 rig.settrial(item[0],item[1])
                 time.sleep(0.001)
-    elif event == "Current Arduino settings":
+                
+        #Here update the vertical line stim indicators in case user passes in new values
+        vls = [float(values['preCSdur']),float(values['CSdur']),float(values['USdur'])]
+        
+        
+    elif event == "Current Microcontroller settings":
         rig.GetArduinoState()
-    
-    # LED controls
-    elif event == "Set LED":
-        try:
-            intensity = float(values['LED_INTENSITY'])
-            intensity = max(0, min(100, intensity))  # clamp 0-100
-            led_pwm.ChangeDutyCycle(intensity)
-            print(f"LED intensity set to {intensity}%")
-        except ValueError:
-            print("Invalid intensity value")
-    elif event == "LED Off":
-        led_pwm.ChangeDutyCycle(0)
-        print("LED turned off")
     
     ##Process and display the current frame capture in GUI if streaming
     if streaming and frame is not None:
         if len(frame)>0:
-            #imgbytes = frame
             data = cv2.resize(cv2.imdecode(np.frombuffer(frame, dtype=np.uint8), cv2.IMREAD_GRAYSCALE),(300,240))
             imgbytes = cv2.imencode('.png',data)[1].tobytes()
             window["-IMAGE-"].update(data=imgbytes)
         frame = None
     
-    
+    time.sleep(0.005)
     
 ##Do this when the program is ended
 window.close()
@@ -210,7 +296,4 @@ if vs is not None:
     print("vs.end()")
 rig.end()
 print("rig.end()")
-# Stop LED PWM and reset GPIO
-led_pwm.stop()
-GPIO.cleanup()
 print('Program ended')
