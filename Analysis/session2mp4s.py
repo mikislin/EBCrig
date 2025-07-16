@@ -32,7 +32,7 @@ txt_files = [os.path.join(*i) for i in files]
 names = [os.path.splitext(os.path.split(f)[-1])[0] for f in im_files]
 print('Available datasets:')
 for idx,n in enumerate(names):
-    print('\t{}\t{}'.format(idx,n))
+    print(f'\t{idx}\t{n}')
 
 #%% function to convert mjpg to np array
 def mjpg2array(filename):   
@@ -72,9 +72,6 @@ def mjpg2array(filename):
             else:
                 mov[:,:,idx] = data
             idx += 1
-            #cv2.imshow('i', data)
-            #if cv2.waitKey(1)==27:
-                #exit(0)
         elif a==-1 or b==-1:
             pass
     
@@ -95,27 +92,33 @@ for file,name in zip(im_files,names):
     #parse bytes to np array
     imArray,time = mjpg2array(file)
     
-    #Make a subarray corresponding to highlighted trace period
-    csTime = float(headers['preCSdur'])#number of millis at which cs starts
-    csusInt = csusInt = float(headers['CS_USinterval'])#length of cs alone
-    usDur = float(headers['USdur'])#length of us in millis
-    pad = [300,300]#ms pad before and after us termination
-    timeEnds = [-pad[0]+csTime,pad[1]+csTime+csusInt]
-    goodFrames = (time>timeEnds[0]) & (time<timeEnds[1])
-    #Stamps for CS and US
-    csStamp = np.zeros(np.shape(imArray[0]))
-    csStamp[0:10,0:10] = 255
-    usStamp = np.ones(np.shape(imArray[0]))
-    usStamp[0:10,0:10] = 0
-    csEnds = [csTime,csTime+csusInt+usDur]
-    usEnds = [csTime+csusInt,csTime+csusInt+usDur]
-    for a in np.where((time>=csEnds[0]) & (time<=csEnds[1])):
-        imArray[a] = imArray[a]*usStamp + csStamp
-    for b in np.where((time>=usEnds[0]) & (time<=usEnds[1])):
-        imArray[b] = imArray[b]*usStamp
+    # only apply CS/US stamps for non-ITI files
+    if 'ITI' not in name:
+        #Make a subarray corresponding to highlighted trace period
+        csTime = float(headers['preCSdur'])  # millis at CS start
+        csusInt = float(headers['CS_USinterval'])  # CS alone length
+        usDur = float(headers['USdur'])  # US duration
+        pad = [300,300]
+        timeEnds = [-pad[0]+csTime, pad[1]+csTime+csusInt]
+        goodFrames = (time>timeEnds[0]) & (time<timeEnds[1])
+        #Stamps for CS and US
+        csStamp = np.zeros(np.shape(imArray[0]),dtype=np.uint8)
+        csStamp[0:10,0:10] = 255
+        usStamp = np.ones(np.shape(imArray[0]),dtype=np.uint8)
+        usStamp[0:10,0:10] = 0
+        csEnds = [csTime, csTime+csusInt+usDur]
+        usEnds = [csTime+csusInt, csTime+csusInt+usDur]
+        for a in np.where((time>=csEnds[0]) & (time<=csEnds[1])):
+            imArray[a] = imArray[a]*usStamp + csStamp
+        for b in np.where((time>=usEnds[0]) & (time<=usEnds[1])):
+            imArray[b] = imArray[b]*usStamp
+    else:
+        # For ITI files, include all frames without stamping
+        goodFrames = np.arange(len(time))
+    
     #write to mp4
     imSubArray = imArray[goodFrames]
     if not os.path.exists(os.path.join(path,'sampleMovs')):
         os.makedirs(os.path.join(path,'sampleMovs'))
     im_fileOut = os.path.join(path,'sampleMovs',name+'.mp4')
-    imageio.mimwrite(im_fileOut,imSubArray)#,fps=10,quality=9)
+    imageio.mimwrite(im_fileOut,imSubArray)
