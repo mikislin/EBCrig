@@ -9,7 +9,6 @@ import RPi.GPIO as GPIO
 import time
 import pickle
 
-    
 class ImgOutput(object):
     #Object with write method that informs other threads when a frame is available
     def __init__(self,frame_buffer,finished,current_frame,triggerTime,saving,kill_flag):
@@ -26,8 +25,7 @@ class ImgOutput(object):
         if buf.startswith(b'\xff\xd8') and not self.kill_flag.value:
             # New frame, copy the existing buffer's content and notify all
             # clients it's available
-            ts = time.perf_counter()-self.triggerTime.value-0.02
-            #self.camTS.value = time.perf_counter()
+            ts = time.perf_counter() - self.triggerTime.value - 0.02
             size = self.buffer.tell()
             if size:
                 self.buffer.seek(0)
@@ -44,10 +42,9 @@ class ImgOutput(object):
         self.frame_buffer.join_thread()
         self.finished.set()
     
-
 class MovieSaver(mp.Process):
-    #Handles the saving of movie data as a separate process called in picamhandler
-    def __init__(self, fname, startSave, saving, frame_buffer, flushing, buffer_size=2000, min_flush=200,piStreamDone=None,kill_flag=None):#,triggerTime=None,camTS=None
+    #Handles the saving of movie data as a separate process called in piCamHandler
+    def __init__(self, fname, startSave, saving, frame_buffer, flushing, buffer_size=2000, min_flush=200,piStreamDone=None,kill_flag=None):
         super(MovieSaver, self).__init__()
         self.daemon = True
             
@@ -62,8 +59,6 @@ class MovieSaver(mp.Process):
         self.frame_buffer = frame_buffer
         self.flushing = flushing
         self.piStreamDone = piStreamDone
-        #self.triggerTime = triggerTime
-        #self.camTS = camTS
         self.kill_flag = kill_flag
 
         #Process-specific
@@ -93,31 +88,26 @@ class MovieSaver(mp.Process):
                 while not self.frame_buffer.empty():
                     ts,frame = self.frame_buffer.get(block=False)
                     datalist.append((ts,frame))
-                if fi!=None:
-                    if not fi.closed:
-                        pickle.dump(datalist,fi)
-                        fi.close()
+                if fi!=None and not fi.closed:
+                    pickle.dump(datalist,fi)
+                    fi.close()
                 self.saving_complete.value = True
                 self.flushing.value = False
                 print('Finished saving')
             time.sleep(0.001)
         
         #Saving final frames if kill flag on
-        if fi != None:
-            if not fi.closed:
-                while not self.frame_buffer.empty():
-                    ts,frame = self.frame_buffer.get(block=False)
-                    datalist.append((ts,frame))
-                pickle.dump(datalist,fi)
-                fi.close()
-                self.saving_complete.value = True
-        
-            
+        if fi!=None and not fi.closed:
+            datalist = []
+            while not self.frame_buffer.empty():
+                ts,frame = self.frame_buffer.get(block=False)
+                datalist.append((ts,frame))
+            pickle.dump(datalist,fi)
+            fi.close()
+            self.saving_complete.value = True
 
 class PiVideoStream(mp.Process):
-    def __init__(self,output=None,resolution=(640, 480),framerate=100,frame_buffer=None,finished=None,stream_flag=None,saving=None,sync_flag=None,startAcq=None,triggerTime=None,piStreamDone=None,kill_flag=None,**kwargs):
-        #Note output could be an instantiation of ImgOutput or any file-type object
-        #with a write method that returns each frame capture as the write
+    def __init__(self,output=None,resolution=(640, 480),framerate=100,frame_buffer=None,finished=None,stream_flag=None,saving=None,startAcq=None,triggerTime=None,piStreamDone=None,kill_flag=None,**kwargs):
         super(PiVideoStream,self).__init__()
         self.daemon = True
         
@@ -146,7 +136,6 @@ class PiVideoStream(mp.Process):
         self.camera.annotate_text = 'Not recording'
         
         ##For interacting with the save and GPIO processes
-        #Shared processes inherited from parent
         self.stream_flag = stream_flag
         self.saving = saving
         self.startAcq = startAcq
@@ -158,9 +147,8 @@ class PiVideoStream(mp.Process):
         self.thread_complete = mp.Value('b',True)
         self.getSaveRead = mp.Value('b',False)
         
-        # set optional camera parameters (refer to PiCamera docs)
-        for (arg, value) in kwargs.items():
-            setattr(self.camera, arg, value)
+        # set optional camera parameters
+        for (arg, value) in kwargs.items(): setattr(self.camera, arg, value)
         
         self.start()
         
@@ -170,23 +158,18 @@ class PiVideoStream(mp.Process):
             if self.startAcq.value:
                 #Get time from trigger in ms
                 triggerLatency = time.perf_counter() - self.triggerTime.value
-                #If longer than one frame grab, we entered between grabs-> subtract one frame time off
                 if triggerLatency>1/self.camera.framerate:
-                    self.triggerTime.value = self.triggerTime.value - 1/self.camera.framerate
+                    self.triggerTime.value -= 1/self.camera.framerate
                 self.startAcq.value = False
                 self.saving.value = True
                 self.piStreamDone.value = False
-                
             if not self.saving.value and not self.startAcq.value:
-                #reset flags
                 self.piStreamDone.value = True
             time.sleep(0.001)
-            
         self.piStreamDone.value = True
-        
-        
+
 class piCamHandler():
-    def __init__(self,resolution=(640,480),framerate=100): #,sync_flag=None
+    def __init__(self,resolution=(640,480),framerate=100):
         #Params for picamera
         self.resolution = resolution
         self.framerate = framerate
@@ -209,7 +192,9 @@ class piCamHandler():
         self.piStreamDone = mp.Value('b',True)
         self.kill_flag = mp.Value('b',False)
         self.trialNum = 0
-        
+        # NEW: count ITIs
+        self.iti_counter = 0
+
         #Initializing GPIO
         GPIO.setwarnings(False)
         GPIO.cleanup()
@@ -217,16 +202,17 @@ class piCamHandler():
         self.on_pin = 25
         GPIO.setup(self.on_pin,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
         GPIO.add_event_detect(self.on_pin,GPIO.BOTH,callback=self.interrupt_in)
-        
+
         #Initiate subprocesses to handle image acquisition
         self.saver = MovieSaver(fname=self.fname,startSave=self.startSave,saving=self.saving,frame_buffer=self.frame_buffer,flushing=self.flushing,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
         self.output = ImgOutput(frame_buffer=self.frame_buffer,finished=self.finished,current_frame=self.current_frame,triggerTime=self.triggerTime,saving=self.saving,kill_flag=self.kill_flag)
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
-        
+
     def interrupt_in(self,channel):
+        # TRIAL START
         if GPIO.input(self.on_pin) and not self.saving.value:
             self.triggerTime.value = time.perf_counter()
-            self.trialNum = self.trialNum + 1
+            self.trialNum += 1
             trial_str = str(self.trialNum)
             newFname = self.fStub.value+'cam_trial'+trial_str+'.data'
             self.fname.value = newFname
@@ -234,12 +220,22 @@ class piCamHandler():
             self.startAcq.value = True
             self.piStream.camera.annotate_text = ''
             print('Trial start interrupt detected by picam')
+        # TRIAL END & ITI START
         elif not GPIO.input(self.on_pin):
+            # finish trial
             self.saving.value = False
             self.flushing.value = True
-            self.piStream.camera.annotate_text = 'Not recording'
-            print('Trial end interrupt detected by picam')
-    
+            # start ITI
+            self.iti_counter += 1
+            iti_str = str(self.iti_counter)
+            newFname = self.fStub.value+'cam_ITI'+iti_str+'.data'
+            self.fname.value = newFname
+            self.triggerTime.value = time.perf_counter()
+            self.startSave.value = True
+            self.startAcq.value = True
+            self.piStream.camera.annotate_text = 'ITI '+iti_str
+            print('ITI start interrupt detected by picam')
+
     def reset_cam(self):
         self.stream_flag.value = True
         self.piStream.camera.annotate_background = picamera.Color('black')
@@ -264,7 +260,7 @@ class piCamHandler():
             self.triggerTime.value = time.perf_counter()
         else:
             print('Already saving to file')
-        
+    
     def guiStopRecording(self):
         if self.saving.value:
             self.saving.value = False
@@ -272,21 +268,21 @@ class piCamHandler():
             self.piStream.camera.annotate_text = 'Not recording'
         else:
             print('Stream is not currently saving')
-            
+    
     def passFstub(self,fStub):
         #Get fname when session starts
         self.fStub.value = fStub
         self.trialNum = 0
-            
+        self.iti_counter = 0
+    
     def end(self):
         self.stream_flag.value = False
         self.kill_flag.value = True
-        #print('got kill_flag')
-        #Allow stream and saver to finish jobs
+        # Allow stream and saver to finish
         while (not self.piStream.thread_complete.value) or (not self.saver.saving_complete.value):
             time.sleep(0.5)
             print('Waiting for camera threads to end')
             pass
-        #Release resources
+        # Release resources
         self.piStream.camera.close()
         GPIO.cleanup()
