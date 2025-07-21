@@ -563,39 +563,39 @@ void updateEncoder(unsigned long now) {
 		
     //Motion detection during ITI
     //If animal moves too much during ITI
-    if(!trial.trialIsRunning){
-      if(trial.msIntoITI>trial.ITItimeout - trial.ITI){	
-        if(!rotaryencoder.notStill){
-          rotaryencoder.notStill = true;
-          }
-          return;
-      //Initialize motion detection	
-      }else if(rotaryencoder.resetMotionCount){
-        //serialOut(now,"motionDetectOn",1);
-        rotaryencoder.isOnMotionCount = true;
-        rotaryencoder.resetMotionCount = false;
-        rotaryencoder.sumMotion = 0;
-        //Initialize motion detection as 0's array
-        for(int i=0;i<rotaryencoder.lenDetect;i++){rotaryencoder.motionArr[i]=0;}
-      //Update the count based on how much mouse has moved since last poll	
-      }else if(rotaryencoder.isOnMotionCount){
-        //circular permute array by 1 to right, then add latest motion
-        for(int i = rotaryencoder.lenDetect - 1;i>=0;i--){
-          if(i>0){rotaryencoder.motionArr[i] = rotaryencoder.motionArr[i-1];
-          }else{rotaryencoder.motionArr[i] = abs(rotaryencoder.diffPos);//random(180)*0.01;
-          }
-          rotaryencoder.sumMotion += rotaryencoder.motionArr[i];
-        }
-        
-        //If motion above threshold, reset motion array
-        if(rotaryencoder.sumMotion>rotaryencoder.motionThresh){
-          //serialOut(now,"Moved",rotaryencoder.sumMotion);
-          rotaryencoder.resetMotionCount = true;
-          rotaryencoder.still = false;
-          trial.ITIstillStartMillis = now;
-        }
-        rotaryencoder.sumMotion = 0;
-      }
+//    if(!trial.trialIsRunning){
+//      if(trial.msIntoITI>trial.ITItimeout - trial.ITI){	
+//        if(!rotaryencoder.notStill){
+//          rotaryencoder.notStill = true;
+//          }
+//          return;
+//      //Initialize motion detection	
+//      }else if(rotaryencoder.resetMotionCount){
+//        //serialOut(now,"motionDetectOn",1);
+//        rotaryencoder.isOnMotionCount = true;
+//        rotaryencoder.resetMotionCount = false;
+//        rotaryencoder.sumMotion = 0;
+//        //Initialize motion detection as 0's array
+//        for(int i=0;i<rotaryencoder.lenDetect;i++){rotaryencoder.motionArr[i]=0;}
+//      //Update the count based on how much mouse has moved since last poll	
+//      }else if(rotaryencoder.isOnMotionCount){
+//        //circular permute array by 1 to right, then add latest motion
+//        for(int i = rotaryencoder.lenDetect - 1;i>=0;i--){
+//          if(i>0){rotaryencoder.motionArr[i] = rotaryencoder.motionArr[i-1];
+//          }else{rotaryencoder.motionArr[i] = abs(rotaryencoder.diffPos);//random(180)*0.01;
+//          }
+//          rotaryencoder.sumMotion += rotaryencoder.motionArr[i];
+//        }
+//        
+//        //If motion above threshold, reset motion array
+//        if(rotaryencoder.sumMotion>rotaryencoder.motionThresh){
+//          //serialOut(now,"Moved",rotaryencoder.sumMotion);
+//          rotaryencoder.resetMotionCount = true;
+//          rotaryencoder.still = false;
+//          trial.ITIstillStartMillis = now;
+//        }
+//        rotaryencoder.sumMotion = 0;
+//      }
     //Reset flags at the end of the ITI
     }else if(trial.trialIsRunning && (rotaryencoder.notStill || !rotaryencoder.resetMotionCount)){
       if(rotaryencoder.notStill){
