@@ -209,6 +209,11 @@ class piCamHandler():
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
 
     def interrupt_in(self,channel):
+        now_high = GPIO.input(self.on_pin)  # True = TRIAL, False = ITI
+        # Always finish whatever was recording
+        if self.saving.value:
+            self.saving.value = False
+            self.flushing.value = True   # tell MovieSaver to dump remaining frames
         # TRIAL START
         if GPIO.input(self.on_pin) and not self.saving.value:
             self.triggerTime.value = time.perf_counter()
