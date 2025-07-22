@@ -197,7 +197,7 @@ class piCamHandler():
 
         #Initializing GPIO
         GPIO.setwarnings(False)
-        GPIO.cleanup()
+        GPIO.cleanup(25)
         GPIO.setmode(GPIO.BCM)
         self.on_pin = 25
         GPIO.setup(self.on_pin,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
