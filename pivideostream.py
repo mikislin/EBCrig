@@ -53,6 +53,7 @@ class MovieSaver(mp.Process):
         self.fname = fname
         self.buffer_size = buffer_size
         self.min_flush = min_flush
+        self.min_flush = 5 
         
         ##Inherited flags and containers
         self.saving = saving
@@ -73,13 +74,17 @@ class MovieSaver(mp.Process):
             if self.startSave.value:
                 self.startSave.value = False
                 self.saving_complete.value = False
+                print("Opening:", self.fname.value)  
                 fi = open(self.fname.value,'wb')
                 datalist = []
 
             if not self.piStreamDone.value:
+                print("loop:", "piStreamDone", self.piStreamDone.value,
+                      "qsize", self.frame_buffer.qsize())
                 while not self.frame_buffer.empty():
                     ts,frame = self.frame_buffer.get(block=False)
                     datalist.append((ts,frame))
+                    print("got frame, datalist len:", len(datalist))
                     if len(datalist)>self.min_flush:
                         pickle.dump(datalist,fi)
                         datalist = []
@@ -202,7 +207,7 @@ class piCamHandler():
         GPIO.setmode(GPIO.BCM)
         self.on_pin = 25
         GPIO.setup(self.on_pin,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
-        GPIO.add_event_detect(self.on_pin,GPIO.BOTH,callback=self.interrupt_in)
+        GPIO.add_event_detect(self.on_pin, GPIO.BOTH, callback=self._gpio_cb, bouncetime=5)
 
         #Initiate subprocesses to handle image acquisition
         self.saver = MovieSaver(fname=self.fname,startSave=self.startSave,saving=self.saving,frame_buffer=self.frame_buffer,flushing=self.flushing,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
@@ -211,6 +216,7 @@ class piCamHandler():
 
     def _gpio_cb(self, channel):
             # GPIO calls this; we forward to the real handler
+         print("GPIO edge detected") 
          self.interrupt_in(channel)
 
     def interrupt_in(self, channel):
@@ -228,6 +234,7 @@ class piCamHandler():
             trial_str = str(self.trialNum)
             newFname = os.path.join(self.fStub.value, f"cam_trial{trial_str}.data")
             self.fname.value = newFname
+            print("New file:", self.fname.value) 
             self.startSave.value = True
             self.startAcq.value  = True
             self.piStream.camera.annotate_text = ''
@@ -238,6 +245,7 @@ class piCamHandler():
             iti_str = str(self.iti_counter)
             newFname = os.path.join(self.fStub.value, f"cam_ITI{iti_str}.data")
             self.fname.value = newFname
+            print("New file:", self.fname.value)
             self.triggerTime.value = time.perf_counter()
             self.startSave.value = True
             self.startAcq.value  = True
