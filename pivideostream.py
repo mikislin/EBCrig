@@ -208,6 +208,7 @@ class piCamHandler():
         self.on_pin = 25
         GPIO.setup(self.on_pin,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
         GPIO.add_event_detect(self.on_pin, GPIO.BOTH, callback=self._gpio_cb, bouncetime=5)
+        print("callback set:", hasattr(self, "interrupt_in"))
 
         #Initiate subprocesses to handle image acquisition
         self.saver = MovieSaver(fname=self.fname,startSave=self.startSave,saving=self.saving,frame_buffer=self.frame_buffer,flushing=self.flushing,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
@@ -221,6 +222,7 @@ class piCamHandler():
 
     def interrupt_in(self, channel):
         now_high = GPIO.input(self.on_pin)  # True = TRIAL start, False = ITI start
+        print("interrupt_in fired, high?", GPIO.input(self.on_pin))
     
         # finish current segment if recording
         if self.saving.value:
@@ -237,6 +239,7 @@ class piCamHandler():
             print("New file:", self.fname.value) 
             self.startSave.value = True
             self.startAcq.value  = True
+            print("Set startSave/startAcq True")
             self.piStream.camera.annotate_text = ''
             print(f'Trial start interrupt detected by picam (trial {trial_str})')
         else:
@@ -249,6 +252,7 @@ class piCamHandler():
             self.triggerTime.value = time.perf_counter()
             self.startSave.value = True
             self.startAcq.value  = True
+            print("Set startSave/startAcq True")
             self.piStream.camera.annotate_text = f'ITI {iti_str}'
             print(f'ITI start interrupt detected by picam (ITI {iti_str})')
 
