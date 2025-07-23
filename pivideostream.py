@@ -171,8 +171,6 @@ class PiVideoStream(mp.Process):
 
 class piCamHandler():
     def __init__(self,resolution=(640,480),framerate=100):
-        GPIO.add_event_detect(self.on_pin, GPIO.BOTH, callback=self._gpio_cb)
-        
         #Params for picamera
         self.resolution = resolution
         self.framerate = framerate
