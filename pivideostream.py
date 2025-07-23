@@ -8,6 +8,7 @@ import ctypes
 import RPi.GPIO as GPIO
 import time
 import pickle
+import os 
 
 class ImgOutput(object):
     #Object with write method that informs other threads when a frame is available
@@ -170,6 +171,8 @@ class PiVideoStream(mp.Process):
 
 class piCamHandler():
     def __init__(self,resolution=(640,480),framerate=100):
+        GPIO.add_event_detect(self.on_pin, GPIO.BOTH, callback=self._gpio_cb)
+        
         #Params for picamera
         self.resolution = resolution
         self.framerate = framerate
@@ -208,38 +211,40 @@ class piCamHandler():
         self.output = ImgOutput(frame_buffer=self.frame_buffer,finished=self.finished,current_frame=self.current_frame,triggerTime=self.triggerTime,saving=self.saving,kill_flag=self.kill_flag)
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
 
-import os  # put near top
+    def _gpio_cb(self, channel):
+            # GPIO calls this; we forward to the real handler
+         self.interrupt_in(channel)
 
-def interrupt_in(self, channel):
-    now_high = GPIO.input(self.on_pin)  # True = TRIAL start, False = ITI start
-
-    # finish current segment if recording
-    if self.saving.value:
-        self.saving.value = False
-        self.flushing.value = True
-
-    if now_high:
-        # TRIAL START
-        self.triggerTime.value = time.perf_counter()
-        self.trialNum += 1
-        trial_str = str(self.trialNum)
-        newFname = os.path.join(self.fStub.value, f"cam_trial{trial_str}.data")
-        self.fname.value = newFname
-        self.startSave.value = True
-        self.startAcq.value  = True
-        self.piStream.camera.annotate_text = ''
-        print(f'Trial start interrupt detected by picam (trial {trial_str})')
-    else:
-        # ITI START
-        self.iti_counter += 1
-        iti_str = str(self.iti_counter)
-        newFname = os.path.join(self.fStub.value, f"cam_ITI{iti_str}.data")
-        self.fname.value = newFname
-        self.triggerTime.value = time.perf_counter()
-        self.startSave.value = True
-        self.startAcq.value  = True
-        self.piStream.camera.annotate_text = f'ITI {iti_str}'
-        print(f'ITI start interrupt detected by picam (ITI {iti_str})')
+    def interrupt_in(self, channel):
+        now_high = GPIO.input(self.on_pin)  # True = TRIAL start, False = ITI start
+    
+        # finish current segment if recording
+        if self.saving.value:
+            self.saving.value = False
+            self.flushing.value = True
+    
+        if now_high:
+            # TRIAL START
+            self.triggerTime.value = time.perf_counter()
+            self.trialNum += 1
+            trial_str = str(self.trialNum)
+            newFname = os.path.join(self.fStub.value, f"cam_trial{trial_str}.data")
+            self.fname.value = newFname
+            self.startSave.value = True
+            self.startAcq.value  = True
+            self.piStream.camera.annotate_text = ''
+            print(f'Trial start interrupt detected by picam (trial {trial_str})')
+        else:
+            # ITI START
+            self.iti_counter += 1
+            iti_str = str(self.iti_counter)
+            newFname = os.path.join(self.fStub.value, f"cam_ITI{iti_str}.data")
+            self.fname.value = newFname
+            self.triggerTime.value = time.perf_counter()
+            self.startSave.value = True
+            self.startAcq.value  = True
+            self.piStream.camera.annotate_text = f'ITI {iti_str}'
+            print(f'ITI start interrupt detected by picam (ITI {iti_str})')
 
     def reset_cam(self):
         self.stream_flag.value = True
