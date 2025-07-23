@@ -213,31 +213,28 @@ import os  # put near top
 def interrupt_in(self, channel):
     now_high = GPIO.input(self.on_pin)  # True = TRIAL start, False = ITI start
 
-    # Finish whatever was recording
+    # finish current segment if recording
     if self.saving.value:
         self.saving.value = False
-        self.flushing.value = True   # tell MovieSaver to dump remaining frames
+        self.flushing.value = True
 
     if now_high:
-        # ---- TRIAL START ----
+        # TRIAL START
         self.triggerTime.value = time.perf_counter()
         self.trialNum += 1
         trial_str = str(self.trialNum)
         newFname = os.path.join(self.fStub.value, f"cam_trial{trial_str}.data")
         self.fname.value = newFname
-
         self.startSave.value = True
         self.startAcq.value  = True
         self.piStream.camera.annotate_text = ''
         print(f'Trial start interrupt detected by picam (trial {trial_str})')
-
     else:
-        # ---- ITI START ----
+        # ITI START
         self.iti_counter += 1
         iti_str = str(self.iti_counter)
         newFname = os.path.join(self.fStub.value, f"cam_ITI{iti_str}.data")
         self.fname.value = newFname
-
         self.triggerTime.value = time.perf_counter()
         self.startSave.value = True
         self.startAcq.value  = True
