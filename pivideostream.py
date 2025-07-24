@@ -48,9 +48,10 @@ class ImgOutput(object):
 
 class MovieSaver(mp.Process):
     #Handles the saving of movie data as a separate process called in picamhandler
-    def __init__(self, fname, startSave, saving, frame_buffer, flushing, buffer_size=2000, min_flush=200,piStreamDone=None,kill_flag=None):#,triggerTime=None,camTS=None
-    #Handles the saving of movie data as a separate process called in piCamHandler
-    def __init__(self, fname, startSave, saving, frame_buffer, flushing, buffer_size=2000, min_flush=200,piStreamDone=None,kill_flag=None):
+    def __init__(self, fname, startSave, saving, 
+                 frame_buffer, flushing, 
+                 buffer_size=2000, min_flush=200,
+                 piStreamDone=None,kill_flag=None):#,triggerTime=None,camTS=None
         super(MovieSaver, self).__init__()
         self.daemon = True
 
@@ -129,10 +130,21 @@ class MovieSaver(mp.Process):
             self.saving_complete.value = True
 
 class PiVideoStream(mp.Process):
-    def __init__(self,output=None,resolution=(640, 480),framerate=100,frame_buffer=None,finished=None,stream_flag=None,saving=None,sync_flag=None,startAcq=None,triggerTime=None,piStreamDone=None,kill_flag=None,**kwargs):
+    def __init__(self,output=None,
+                 resolution=(640, 480),
+                 framerate=100,
+                 frame_buffer=None,
+                 finished=None,
+                 stream_flag=None,
+                 saving=None,
+                 sync_flag=None,
+                 startAcq=None,
+                 triggerTime=None,
+                 piStreamDone=None,
+                 kill_flag=None,
+                 **kwargs):
         #Note output could be an instantiation of ImgOutput or any file-type object
         #with a write method that returns each frame capture as the write
-    def __init__(self,output=None,resolution=(640, 480),framerate=100,frame_buffer=None,finished=None,stream_flag=None,saving=None,startAcq=None,triggerTime=None,piStreamDone=None,kill_flag=None,**kwargs):
         super(PiVideoStream,self).__init__()
         self.daemon = True
 
