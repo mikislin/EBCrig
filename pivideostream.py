@@ -261,7 +261,7 @@ class piCamHandler():
 
     def interrupt_in(self,channel):
         # TRIAL START
-        if GPIO.input(self.on_pin) and not self.saving.value:
+        if GPIO.input(self.on_pin):
             self.triggerTime.value = time.perf_counter()
             self.trialNum += 1
             trial_str = str(self.trialNum)
