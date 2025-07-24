@@ -263,7 +263,6 @@ class piCamHandler():
         # TRIAL START
         if GPIO.input(self.on_pin) and not self.saving.value:
             self.triggerTime.value = time.perf_counter()
-            self.trialNum = self.trialNum + 1
             self.trialNum += 1
             trial_str = str(self.trialNum)
             newFname = self.fStub.value+'cam_trial'+trial_str+'.data'
