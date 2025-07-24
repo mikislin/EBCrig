@@ -218,7 +218,6 @@ class PiVideoStream(mp.Process):
 
 class piCamHandler():
     def __init__(self,resolution=(640,480),framerate=100): #,sync_flag=None
-    def __init__(self,resolution=(640,480),framerate=100):
         #Params for picamera
         self.resolution = resolution
         self.framerate = framerate
