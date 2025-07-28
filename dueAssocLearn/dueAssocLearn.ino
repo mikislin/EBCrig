@@ -45,6 +45,8 @@ struct trial
   //Trial pin
   boolean pinOnOff;//controls transitioning pin state
   int trialPin;//pin for projecting current trial state
+  int itiPin;//pin for projecting current ITI state
+  boolean itiPinOnOff:// flag for current ITI state
   //CS and US
   String stimPairType;// rng used to determine CS_US, CS, or US trial type
   unsigned long CSstartMillis; //millis at start of currentPulse
@@ -197,6 +199,10 @@ void setup()
   trial.pinOnOff = false;//trial didn't just end
   pinMode(trial.trialPin, OUTPUT);
   digitalWrite(trial.trialPin, LOW);
+  trial.itiPin = 8;
+  trial.itipinOnOff = false;
+  pinMode(trial.itiPin, OUTPUT);
+  digitalWrite(trial.itiPin, LOW);
   
   //rotary encoder
   rotaryencoder.pinA = 3;
@@ -300,6 +306,8 @@ void startTrial(unsigned long now){
     digitalWrite(trial.trialPin,HIGH);
     serialOut(now,"startTrial",trial.currentTrial);
 
+    digitalWrite(trial.itiPin, LOW);
+    trial.itiPinOnOff = false;
     trial.trialIsRunning = true;
     
     //Reset the 2P
@@ -327,6 +335,8 @@ void stopTrial(unsigned long now) {
   }
   trial.trialIsRunning = false;
   digitalWrite(trial.trialPin,LOW);
+  digitalWrite(trial.itiPin, HIGH);
+  trial.itiPinOnOff = true;
   serialOut(now, "stopTrial", trial.currentTrial);
 
   //Reset the 2P
@@ -561,42 +571,42 @@ void updateEncoder(unsigned long now) {
       }
     }
 		
-    //Motion detection during ITI
-    //If animal moves too much during ITI
-//    if(!trial.trialIsRunning){
-//      if(trial.msIntoITI>trial.ITItimeout - trial.ITI){	
-//        if(!rotaryencoder.notStill){
-//          rotaryencoder.notStill = true;
-//          }
-//          return;
-//      //Initialize motion detection	
-//      }else if(rotaryencoder.resetMotionCount){
-//        //serialOut(now,"motionDetectOn",1);
-//        rotaryencoder.isOnMotionCount = true;
-//        rotaryencoder.resetMotionCount = false;
-//        rotaryencoder.sumMotion = 0;
-//        //Initialize motion detection as 0's array
-//        for(int i=0;i<rotaryencoder.lenDetect;i++){rotaryencoder.motionArr[i]=0;}
-//      //Update the count based on how much mouse has moved since last poll	
-//      }else if(rotaryencoder.isOnMotionCount){
-//        //circular permute array by 1 to right, then add latest motion
-//        for(int i = rotaryencoder.lenDetect - 1;i>=0;i--){
-//          if(i>0){rotaryencoder.motionArr[i] = rotaryencoder.motionArr[i-1];
-//          }else{rotaryencoder.motionArr[i] = abs(rotaryencoder.diffPos);//random(180)*0.01;
-//          }
-//          rotaryencoder.sumMotion += rotaryencoder.motionArr[i];
-//        }
-//        
-//        //If motion above threshold, reset motion array
-//        if(rotaryencoder.sumMotion>rotaryencoder.motionThresh){
-//          //serialOut(now,"Moved",rotaryencoder.sumMotion);
-//          rotaryencoder.resetMotionCount = true;
-//          rotaryencoder.still = false;
-//          trial.ITIstillStartMillis = now;
-//        }
-//        rotaryencoder.sumMotion = 0;
-//      }
-    //Reset flags at the end of the ITI
+    Motion detection during ITI
+    If animal moves too much during ITI
+   if(!trial.trialIsRunning){
+     if(trial.msIntoITI>trial.ITItimeout - trial.ITI){	
+       if(!rotaryencoder.notStill){
+         rotaryencoder.notStill = true;
+         }
+         return;
+     //Initialize motion detection	
+     }else if(rotaryencoder.resetMotionCount){
+       //serialOut(now,"motionDetectOn",1);
+       rotaryencoder.isOnMotionCount = true;
+       rotaryencoder.resetMotionCount = false;
+       rotaryencoder.sumMotion = 0;
+       //Initialize motion detection as 0's array
+       for(int i=0;i<rotaryencoder.lenDetect;i++){rotaryencoder.motionArr[i]=0;}
+     //Update the count based on how much mouse has moved since last poll	
+     }else if(rotaryencoder.isOnMotionCount){
+       //circular permute array by 1 to right, then add latest motion
+       for(int i = rotaryencoder.lenDetect - 1;i>=0;i--){
+         if(i>0){rotaryencoder.motionArr[i] = rotaryencoder.motionArr[i-1];
+         }else{rotaryencoder.motionArr[i] = abs(rotaryencoder.diffPos);//random(180)*0.01;
+         }
+         rotaryencoder.sumMotion += rotaryencoder.motionArr[i];
+       }
+       
+       //If motion above threshold, reset motion array
+       if(rotaryencoder.sumMotion>rotaryencoder.motionThresh){
+         //serialOut(now,"Moved",rotaryencoder.sumMotion);
+         rotaryencoder.resetMotionCount = true;
+         rotaryencoder.still = false;
+         trial.ITIstillStartMillis = now;
+       }
+       rotaryencoder.sumMotion = 0;
+     }
+    Reset flags at the end of the ITI
     }else if(trial.trialIsRunning && (rotaryencoder.notStill || !rotaryencoder.resetMotionCount)){
       if(rotaryencoder.notStill){
         serialOut(now,"NotStill",trial.currentTrial);
