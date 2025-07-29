@@ -1,0 +1,13 @@
+import RPi.GPIO as GPIO
+import time
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(24, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+
+print("Waiting for ITI HIGH on GPIO 24...")
+while True:
+    if GPIO.input(24):
+        print("HIGH detected on GPIO 24")
+        while GPIO.input(24): pass
+        print("Falling edge detected")
+    time.sleep(0.01)
