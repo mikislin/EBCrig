@@ -275,6 +275,13 @@ class piCamHandler():
             self.startAcq.value = True
             self.piStream.camera.annotate_text = ''
             print('Trial start interrupt detected by picam')
+
+            # Frame buffer check
+            if self.frame_buffer.qsize() > 0:
+                self.startSave.value = True
+                self.startAcq.value = True
+            else:
+                print("Skipped saving: no frames yet.")
         else:
             # TRIAL END
             self.saving.value = False
