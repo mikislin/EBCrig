@@ -263,24 +263,24 @@ class piCamHandler():
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
         
 
-   def interrupt_in(self, channel):
-       if GPIO.input(self.on_pin):
-           # TRIAL START
-           self.triggerTime.value = time.perf_counter()
-           self.trialNum += 1
-           trial_str = str(self.trialNum)
-           newFname = self.fStub.value + 'cam_trial' + trial_str + '.data'
-           self.fname.value = newFname
-           self.startSave.value = True
-           self.startAcq.value = True
-           self.piStream.camera.annotate_text = ''
-           print('Trial start interrupt detected by picam')
-       else:
-           # TRIAL END
-           self.saving.value = False
-           self.flushing.value = True
-           self.piStream.camera.annotate_text = 'Not recording'
-           print('Trial end interrupt detected by picam')
+    def interrupt_in(self, channel):
+        if GPIO.input(self.on_pin):
+            # TRIAL START
+            self.triggerTime.value = time.perf_counter()
+            self.trialNum += 1
+            trial_str = str(self.trialNum)
+            newFname = self.fStub.value + 'cam_trial' + trial_str + '.data'
+            self.fname.value = newFname
+            self.startSave.value = True
+            self.startAcq.value = True
+            self.piStream.camera.annotate_text = ''
+            print('Trial start interrupt detected by picam')
+        else:
+            # TRIAL END
+            self.saving.value = False
+            self.flushing.value = True
+            self.piStream.camera.annotate_text = 'Not recording'
+            print('Trial end interrupt detected by picam')
     
     def iti_interrupt_in(self, channel):
         if GPIO.input(self.iti_pin):
