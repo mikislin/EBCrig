@@ -246,15 +246,13 @@ class piCamHandler():
 
         #Initializing GPIO
         GPIO.setwarnings(False)
-        GPIO.cleanup(25)
-        GPIO.cleanup(24)
         GPIO.setmode(GPIO.BCM)
         self.on_pin = 25
         GPIO.setup(self.on_pin,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
         GPIO.add_event_detect(self.on_pin,GPIO.BOTH,callback=self.interrupt_in)
         self.iti_pin = 24  
         GPIO.setup(self.iti_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-        GPIO.add_event_detect(self.iti_pin, GPIO.BOTH, callback=self.iti_interrupt_in)
+        GPIO.add_event_detect(self.iti_pin, GPIO.BOTH, callback=self.iti_interrupt_in, bouncetime=200)
         
 
         #Initiate subprocesses to handle image acquisition
@@ -264,7 +262,16 @@ class piCamHandler():
         
 
     def interrupt_in(self, channel):
+        if not self.saver.saving_complete.value:
+            return
+        
         if GPIO.input(self.on_pin):
+            if self.frame_buffer.empty():
+            print("Skipped saving: no frames yet.")
+                return
+
+            with self.frame_buffer.mutex:
+                self.frame_buffer.queue.clear()
             # TRIAL START
             self.triggerTime.value = time.perf_counter()
             self.trialNum += 1
@@ -275,13 +282,6 @@ class piCamHandler():
             self.startAcq.value = True
             self.piStream.camera.annotate_text = ''
             print('Trial start interrupt detected by picam')
-
-            # Frame buffer check
-            if self.frame_buffer.qsize() > 0:
-                self.startSave.value = True
-                self.startAcq.value = True
-            else:
-                print("Skipped saving: no frames yet.")
         else:
             # TRIAL END
             self.saving.value = False
@@ -290,7 +290,16 @@ class piCamHandler():
             print('Trial end interrupt detected by picam')
     
     def iti_interrupt_in(self, channel):
+        if not self.saver.saving_complete.value:
+            return
+            
         if GPIO.input(self.iti_pin):
+            if self.frame_buffer.empty():
+            print("Skipped saving: no frames yet.")
+
+            with self.frame_buffer.mutex:
+                self.frame_buffer.queue.clear()
+                return
             # ITI START
             self.iti_counter += 1
             iti_str = str(self.iti_counter)
