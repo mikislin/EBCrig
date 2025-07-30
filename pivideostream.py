@@ -261,10 +261,7 @@ class piCamHandler():
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
         
 
-    def interrupt_in(self, channel):
-        if not self.saver.saving_complete.value:
-            return
-        
+    def interrupt_in(self, channel):        
         if GPIO.input(self.on_pin):
 
             with self.frame_buffer.mutex:
@@ -294,7 +291,6 @@ class piCamHandler():
             
             with self.frame_buffer.mutex:
                 self.frame_buffer.queue.clear()
-                return
             # ITI START
             self.iti_counter += 1
             iti_str = str(self.iti_counter)
