@@ -285,16 +285,17 @@ class piCamHandler():
             self.piStream.camera.annotate_text = 'Not recording'
             print('Trial end interrupt detected by picam')
     
-    def iti_interrupt_in(self, channel):
-        if not self.saver.saving_complete.value:
-            return
-            
+    def iti_interrupt_in(self, channel):        
         if GPIO.input(self.iti_pin):
             while True:
                 try:
                     self.frame_buffer.get_nowait()
                 except Empty:
                     break
+
+            if not self.saver.saving_complete.value:
+                print("ITI interrupt: waiting for previous save to finish")
+                return
             # ITI START
             self.iti_counter += 1
             iti_str = str(self.iti_counter)
