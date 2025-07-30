@@ -43,19 +43,19 @@ struct trial
   unsigned long msIntoStillITI; // ms since animal last moved
 	
   //Trial pin
-  boolean pinOnOff;//controls transitioning pin state
-  int trialPin;//pin for projecting current trial state
-  int itiPin;//pin for projecting current ITI state
-  boolean itiPinOnOff:// flag for current ITI state
+  boolean pinOnOff; //controls transitioning pin state
+  int trialPin; //pin for projecting current trial state
+  int itiPin; //pin for projecting current ITI state
+  boolean itiPinOnOff; // flag for current ITI state
   //CS and US
-  String stimPairType;// rng used to determine CS_US, CS, or US trial type
+  String stimPairType; // rng used to determine CS_US, CS, or US trial type
   unsigned long CSstartMillis; //millis at start of currentPulse
   unsigned long  preCSdur; //ms time in trial before CS
   unsigned long CSdur; //ms CS duration
   boolean inCS; // flag for CS timing
   unsigned long CRcountDur; // legnth of time to detect CR
   boolean inCRcount; // flag for when to detect CR motion
-  unsigned long USdur;//ms
+  unsigned long USdur; //ms
   boolean inUS; //flag for US timing
   unsigned long CS_USinterval;//ms
   unsigned int percentUS;//percent trials user wants to be US only trials
@@ -196,11 +196,11 @@ void setup()
   trial.percentCS = 10;//percent CS only trials
 
   trial.trialPin = 7;//pin for conveying trial state
-  trial.pinOnOff = false;//trial didn't just end
+  trial.PinOnOff = false;//trial didn't just end
   pinMode(trial.trialPin, OUTPUT);
   digitalWrite(trial.trialPin, LOW);
   trial.itiPin = 8;
-  trial.itipinOnOff = false;
+  trial.itiPinOnOff = false;
   pinMode(trial.itiPin, OUTPUT);
   digitalWrite(trial.itiPin, LOW);
   
