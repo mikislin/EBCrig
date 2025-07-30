@@ -264,10 +264,10 @@ class piCamHandler():
     def interrupt_in(self, channel):        
         if GPIO.input(self.on_pin):
             while True:
-            try:
-                self.frame_buffer.get_nowait()
-            except Empty:
-                break
+                try:
+                    self.frame_buffer.get_nowait()
+                except Empty:
+                    break
             # TRIAL START
             self.triggerTime.value = time.perf_counter()
             self.trialNum += 1
@@ -291,10 +291,10 @@ class piCamHandler():
             
         if GPIO.input(self.iti_pin):
             while True:
-            try:
-                self.frame_buffer.get_nowait()
-            except Empty:
-                break
+                try:
+                    self.frame_buffer.get_nowait()
+                except Empty:
+                    break
             # ITI START
             self.iti_counter += 1
             iti_str = str(self.iti_counter)
