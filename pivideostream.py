@@ -286,6 +286,7 @@ class piCamHandler():
             print('Trial end interrupt detected by picam')
     
     def iti_interrupt_in(self, channel):        
+        if GPIO.input(self.iti_pin):
             # ITI START
             self.iti_counter += 1
             iti_str = str(self.iti_counter)
