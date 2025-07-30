@@ -266,9 +266,6 @@ class piCamHandler():
             return
         
         if GPIO.input(self.on_pin):
-            if self.frame_buffer.empty():
-            print("Skipped saving: no frames yet.")
-                return
 
             with self.frame_buffer.mutex:
                 self.frame_buffer.queue.clear()
@@ -294,9 +291,7 @@ class piCamHandler():
             return
             
         if GPIO.input(self.iti_pin):
-            if self.frame_buffer.empty():
-            print("Skipped saving: no frames yet.")
-
+            
             with self.frame_buffer.mutex:
                 self.frame_buffer.queue.clear()
                 return
