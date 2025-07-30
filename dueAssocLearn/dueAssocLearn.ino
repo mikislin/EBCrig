@@ -196,7 +196,7 @@ void setup()
   trial.percentCS = 10;//percent CS only trials
 
   trial.trialPin = 7;//pin for conveying trial state
-  trial.PinOnOff = false;//trial didn't just end
+  trial.pinOnOff = false;//trial didn't just end
   pinMode(trial.trialPin, OUTPUT);
   digitalWrite(trial.trialPin, LOW);
   trial.itiPin = 8;
@@ -571,8 +571,8 @@ void updateEncoder(unsigned long now) {
       }
     }
 		
-    Motion detection during ITI
-    If animal moves too much during ITI
+    // Motion detection during ITI
+    // If animal moves too much during ITI
    if(!trial.trialIsRunning){
      if(trial.msIntoITI>trial.ITItimeout - trial.ITI){	
        if(!rotaryencoder.notStill){
@@ -606,7 +606,7 @@ void updateEncoder(unsigned long now) {
        }
        rotaryencoder.sumMotion = 0;
      }
-    Reset flags at the end of the ITI
+    // Reset flags at the end of the ITI
     }else if(trial.trialIsRunning && (rotaryencoder.notStill || !rotaryencoder.resetMotionCount)){
       if(rotaryencoder.notStill){
         serialOut(now,"NotStill",trial.currentTrial);
