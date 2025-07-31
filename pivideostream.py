@@ -207,6 +207,9 @@ class piCamHandler():
         self.piStreamDone = mp.Value('b',True)
         self.kill_flag = mp.Value('b',False)
         self.trialNum = 0
+        self.iti_counter = 0
+        self._last_interrupt_time = 0.0
+        self.DEBOUNCE_SEC = 0.05
        
         #Initializing GPIO
         GPIO.setwarnings(False)
