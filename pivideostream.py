@@ -201,39 +201,52 @@ class piCamHandler():
         self.on_pin = 25
         GPIO.setup(self.on_pin,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
         GPIO.add_event_detect(self.on_pin,GPIO.BOTH,callback=self.interrupt_in)
-
+        self.iti_pin = 24  
+        GPIO.setup(self.iti_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+        GPIO.add_event_detect(self.iti_pin, GPIO.BOTH, callback=self.iti_interrupt_in, bouncetime=200)
+        
         #Initiate subprocesses to handle image acquisition
         self.saver = MovieSaver(fname=self.fname,startSave=self.startSave,saving=self.saving,frame_buffer=self.frame_buffer,flushing=self.flushing,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
         self.output = ImgOutput(frame_buffer=self.frame_buffer,finished=self.finished,current_frame=self.current_frame,triggerTime=self.triggerTime,saving=self.saving,kill_flag=self.kill_flag)
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
-
+    
+    def _clear_buffer(self):
+        while True:
+            try:
+                self.frame_buffer.get_nowait()
+            except Empty:
+                break
+    
     def interrupt_in(self,channel):
-        # TRIAL START
+        def _clear_buffer(self):
+        # drain any leftover frames so new segment starts clean
+        while True:
+            try:
+                self.frame_buffer.get_nowait()
+            except Empty:
+                break
+
+    def interrupt_in(self, channel):
         if GPIO.input(self.on_pin) and not self.saving.value:
+            if not self.saver.saving_complete.value:
+                return
+            self._clear_buffer()  # <- clear before starting trial
             self.triggerTime.value = time.perf_counter()
-            self.trialNum += 1
-            trial_str = str(self.trialNum)
-            newFname = self.fStub.value+'cam_trial'+trial_str+'.data'
-            self.fname.value = newFname
+            ...
             self.startSave.value = True
             self.startAcq.value = True
-            self.piStream.camera.annotate_text = ''
-            print('Trial start interrupt detected by picam')
-        # TRIAL END & ITI START
-        elif not GPIO.input(self.on_pin):
-            # finish trial
-            self.saving.value = False
-            self.flushing.value = True
-            # start ITI
+            ...
+
+    def iti_interrupt_in(self, channel):
+        if GPIO.input(self.iti_pin):
+            if not self.saver.saving_complete.value:
+                print("ITI interrupt: waiting for previous save to finish")
+                return
+            self._clear_buffer()  # <- clear before starting ITI
             self.iti_counter += 1
-            iti_str = str(self.iti_counter)
-            newFname = self.fStub.value+'cam_ITI'+iti_str+'.data'
-            self.fname.value = newFname
-            self.triggerTime.value = time.perf_counter()
+            ...
             self.startSave.value = True
             self.startAcq.value = True
-            self.piStream.camera.annotate_text = 'ITI '+iti_str
-            print('ITI start interrupt detected by picam')
 
     def reset_cam(self):
         self.stream_flag.value = True
