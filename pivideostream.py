@@ -216,15 +216,6 @@ class piCamHandler():
                 self.frame_buffer.get_nowait()
             except Empty:
                 break
-    
-    def interrupt_in(self,channel):
-        def _clear_buffer(self):
-        # drain any leftover frames so new segment starts clean
-        while True:
-            try:
-                self.frame_buffer.get_nowait()
-            except Empty:
-                break
 
     def interrupt_in(self, channel):
         if GPIO.input(self.on_pin) and not self.saving.value:
