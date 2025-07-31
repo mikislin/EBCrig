@@ -201,9 +201,6 @@ class piCamHandler():
         self.on_pin = 25
         GPIO.setup(self.on_pin,GPIO.IN,pull_up_down=GPIO.PUD_DOWN)
         GPIO.add_event_detect(self.on_pin,GPIO.BOTH,callback=self.interrupt_in)
-        self.iti_pin = 24  
-        GPIO.setup(self.iti_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-        GPIO.add_event_detect(self.iti_pin, GPIO.BOTH, callback=self.iti_interrupt_in, bouncetime=200)
 
         #Initiate subprocesses to handle image acquisition
         self.saver = MovieSaver(fname=self.fname,startSave=self.startSave,saving=self.saving,frame_buffer=self.frame_buffer,flushing=self.flushing,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
