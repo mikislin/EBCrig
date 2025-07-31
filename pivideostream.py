@@ -229,9 +229,6 @@ class piCamHandler():
         self.output = ImgOutput(frame_buffer=self.frame_buffer,finished=self.finished,current_frame=self.current_frame,triggerTime=self.triggerTime,saving=self.saving,kill_flag=self.kill_flag)
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
        
-# simple debounce
-_last_interrupt_time = 0.0
-DEBOUNCE_SEC = 0.05  # adjust if needed
 
     def interrupt_in(self, channel):
         now = time.time()
@@ -239,7 +236,7 @@ DEBOUNCE_SEC = 0.05  # adjust if needed
             return
         self._last_interrupt_time = now
     
-        if GPIO.input(self.on_pin):  # TRIAL START
+        if GPIO.input(self.trial_pin):  # TRIAL START
             # ensure ITI pin is logically low (if you're controlling outputs elsewhere)
             time.sleep(0.005)  # tiny gap if coming from previous ITI
             self.triggerTime.value = time.perf_counter()
