@@ -237,7 +237,7 @@ class piCamHandler():
 
     def interrupt_in(self, channel):
         now = time.time()
-        if now - self._last_interrupt_time < DEBOUNCE_SEC:
+        if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
             return
         self._last_interrupt_time = now
     
@@ -275,7 +275,7 @@ class piCamHandler():
 
     def iti_interrupt_in(self, channel):
         now = time.time()
-        if now - self._last_interrupt_time < DEBOUNCE_SEC:
+        if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
             return
         self._last_interrupt_time = now
     
