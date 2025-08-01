@@ -113,6 +113,8 @@ class MovieSaver(mp.Process):
            
 
 class PiVideoStream(mp.Process):
+    DEBOUNCE_SEC = 0.05
+   
     def __init__(self,output=None,resolution=(160, 128),framerate=60,frame_buffer=None,finished=None,stream_flag=None,saving=None,sync_flag=None,startAcq=None,triggerTime=None,piStreamDone=None,kill_flag=None,**kwargs):
         #Note output could be an instantiation of ImgOutput or any file-type object
         #with a write method that returns each frame capture as the write
