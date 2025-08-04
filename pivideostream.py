@@ -85,10 +85,6 @@ class MovieSaver(mp.Process):
                 while not self.frame_buffer.empty():
                     ts,frame = self.frame_buffer.get(block=False)
                     datalist.append((ts,frame))
-                    if len(datalist)>self.min_flush:
-                        pickle.dump(datalist,fi)
-                        datalist = []
-                        print('Wrote to file')
 
             if self.flushing.value and self.piStreamDone.value:
                 while not self.frame_buffer.empty():
@@ -264,7 +260,7 @@ class piCamHandler():
    
        if GPIO.input(self.trial_pin):  # TRIAL START
            if not self._wait_for_saver_complete():
-               return
+               print("Warning: starting trial before previous flush fully finished")
            self._clear_frame_buffer()
    
            self.triggerTime.value = time.perf_counter()
@@ -282,11 +278,10 @@ class piCamHandler():
            self.piStream.camera.annotate_text = 'Not recording'
            print('Trial end interrupt detected by picam')
    
-           # wait for trial flush to complete
+           # wait for trial to finish flushing
            if not self._wait_for_saver_complete():
-               # still proceed, but log
                print("Proceeding to ITI despite incomplete trial flush")
-           time.sleep(0.005)  # tiny gap
+           time.sleep(0.005)  # small intentional gap
            self._clear_frame_buffer()
    
            # start ITI
@@ -322,26 +317,6 @@ class piCamHandler():
             self.flushing.value = True
             self.piStream.camera.annotate_text = 'Not recording'
             print('ITI end interrupt detected by picam')
-
-    def _deferred_iti_worker(self):
-        # Runs in background to start ITI after previous trial has flushed
-        while True:
-            if self._pending_iti and self.saver.saving_complete.value:
-                # enforce small gap
-                time.sleep(0.005)
-                # clear leftover buffer frames
-                self._clear_frame_buffer()
-                # start ITI
-                self.iti_counter += 1
-                iti_str = str(self.iti_counter)
-                self.fname.value = self.fStub.value + 'cam_ITI' + iti_str + '.data'
-                self.triggerTime.value = time.perf_counter()
-                self.startSave.value = True
-                self.startAcq.value = True
-                self.piStream.camera.annotate_text = 'ITI ' + iti_str
-                print('ITI start interrupt detected by picam (deferred)')
-                self._pending_iti = False
-            time.sleep(0.01)
 
     def reset_cam(self):
         self.stream_flag.value = True
