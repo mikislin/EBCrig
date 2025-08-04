@@ -42,12 +42,14 @@ def update_plot(ax,vls=np.nan,rot_time=np.nan,rot=np.nan,eb_time=np.nan,eb=np.na
         vh.append(ax.vlines(vls[0]+vls[1]-vls[2],ymin,ymax,linestyle='--',color='black'))
         vh.append(ax.vlines(vls[0]+vls[1],ymin,ymax,linestyle='--',color='black'))
         
-    if np.max(rot)>ymax or np.min(rot)<ymin:
-        [v.remove() for v in vh]
-        ymax = np.max([np.max(rot),ymax]);ymin = np.min([np.min(rot),ymin])
-        vh = [ax.vlines(vls[0],ymin,ymax,linestyle='--',color='black')]
-        vh.append(ax.vlines(vls[0]+vls[1]-vls[2],ymin,ymax,linestyle='--',color='black'))
-        vh.append(ax.vlines(vls[0]+vls[1],ymin,ymax,linestyle='--',color='black'))
+    if isinstance(rot, np.ndarray) and rot.size > 0:
+        rmax, rmin = rot.max(), rot.min()
+        if rmax > ymax or rmin < ymin:
+            [v.remove() for v in vh]
+            ymax, ymin = max(rmax, ymax), min(rmin, ymin)
+            vh = [ax.vlines(vls[0], ymin, ymax, linestyle='--', color='black')]
+            vh.append(ax.vlines(vls[0] + vls[1] - vls[2], ymin, ymax, linestyle='--', color='black'))
+            vh.append(ax.vlines(vls[0] + vls[1], ymin, ymax, linestyle='--', color='black'))
      
     #Handling the rotary plots    
     if not h and not np.isnan(rot).all():
