@@ -8,7 +8,7 @@ import ctypes
 import RPi.GPIO as GPIO
 import time
 import pickle
-import threading
+
 
    
 class ImgOutput(object):
@@ -215,8 +215,7 @@ class piCamHandler():
         self.iti_counter = 0
         self._last_interrupt_time = 0.0
         self.DEBOUNCE_SEC = 0.05
-        self._pending_iti = False          # flag that trial ended and ITI should start once flush completes
-        self._pending_iti_time = 0.0      # timestamp to enforce the small gap before starting ITI
+
        
         #Initializing GPIO
         GPIO.setwarnings(False)
@@ -238,7 +237,7 @@ class piCamHandler():
         self.saver = MovieSaver(fname=self.fname,startSave=self.startSave,saving=self.saving,frame_buffer=self.frame_buffer,flushing=self.flushing,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
         self.output = ImgOutput(frame_buffer=self.frame_buffer,finished=self.finished,current_frame=self.current_frame,triggerTime=self.triggerTime,saving=self.saving,kill_flag=self.kill_flag)
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
-        threading.Thread(target=self._deferred_iti_worker, daemon=True).start()
+
     
     def _wait_for_saver_complete(self, timeout=0.5):
        deadline = time.time() + timeout
@@ -258,33 +257,47 @@ class piCamHandler():
                break
               
     def interrupt_in(self, channel):
-        now = time.time()
-        if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
-            return
-        self._last_interrupt_time = now
+       now = time.time()
+       if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
+           return
+       self._last_interrupt_time = now
    
-        if GPIO.input(self.trial_pin):  # TRIAL START
-            # wait for any previous save to finish, then clear buffer
-            self._wait_for_saver_complete()
-            self._clear_frame_buffer()
+       if GPIO.input(self.trial_pin):  # TRIAL START
+           if not self._wait_for_saver_complete():
+               return
+           self._clear_frame_buffer()
    
-            self.triggerTime.value = time.perf_counter()
-            self.trialNum += 1
-            trial_str = str(self.trialNum)
-            self.fname.value = self.fStub.value + 'cam_trial' + trial_str + '.data'
-            self.startSave.value = True
-            self.startAcq.value = True
-            self.piStream.camera.annotate_text = ''
-            print('Trial start interrupt detected by picam')
-        else:  # TRIAL END → defer ITI
-            # end trial
-            self.saving.value = False
-            self.flushing.value = True
-            self.piStream.camera.annotate_text = 'Not recording'
-            print('Trial end interrupt detected by picam')
+           self.triggerTime.value = time.perf_counter()
+           self.trialNum += 1
+           trial_str = str(self.trialNum)
+           self.fname.value = self.fStub.value + 'cam_trial' + trial_str + '.data'
+           self.startSave.value = True
+           self.startAcq.value = True
+           self.piStream.camera.annotate_text = ''
+           print('Trial start interrupt detected by picam')
+       else:  # TRIAL END → ITI START
+           # end trial
+           self.saving.value = False
+           self.flushing.value = True
+           self.piStream.camera.annotate_text = 'Not recording'
+           print('Trial end interrupt detected by picam')
    
-            # schedule ITI to start after flush completes
-            self._pending_iti = True
+           # wait for trial flush to complete
+           if not self._wait_for_saver_complete():
+               # still proceed, but log
+               print("Proceeding to ITI despite incomplete trial flush")
+           time.sleep(0.005)  # tiny gap
+           self._clear_frame_buffer()
+   
+           # start ITI
+           self.iti_counter += 1
+           iti_str = str(self.iti_counter)
+           self.fname.value = self.fStub.value + 'cam_ITI' + iti_str + '.data'
+           self.triggerTime.value = time.perf_counter()
+           self.startSave.value = True
+           self.startAcq.value = True
+           self.piStream.camera.annotate_text = 'ITI ' + iti_str
+           print('ITI start interrupt detected by picam')
 
     def iti_interrupt_in(self, channel):
         now = time.time()
