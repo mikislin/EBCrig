@@ -85,6 +85,9 @@ class MovieSaver(mp.Process):
                 while not self.frame_buffer.empty():
                     ts,frame = self.frame_buffer.get(block=False)
                     datalist.append((ts,frame))
+                    if len(datalist)>self.min_flush:
+                       pickle.dump(datalist,fi)
+                       datalist = []
 
             if self.flushing.value and self.piStreamDone.value:
                 while not self.frame_buffer.empty():
@@ -235,14 +238,15 @@ class piCamHandler():
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
 
     
-    def _wait_for_saver_complete(self, timeout=0.5):
-       deadline = time.time() + timeout
-       while time.time() < deadline:
-           if self.saver.saving_complete.value:
-               return True
+    def _wait_for_saver_complete(self, timeout=1.0):
+       start = time.time()
+       while not self.saver.saving_complete.value:
+           if time.time() - start > timeout:
+               # If we hit timeout, keep waiting but back off a bit to avoid tight spin.
+               print("Warning: previous save not finished, waiting additional time")  # diagnostic
+               time.sleep(0.1)
+               start = time.time()
            time.sleep(0.005)
-       print("Warning: previous save not finished before starting new segment")
-       return False
 
     def _clear_frame_buffer(self):
        # Drain any leftover frames so new segment starts fresh
@@ -277,13 +281,12 @@ class piCamHandler():
            self.flushing.value = True
            self.piStream.camera.annotate_text = 'Not recording'
            print('Trial end interrupt detected by picam')
-   
-           # wait for trial to finish flushing
-           if not self._wait_for_saver_complete():
-               print("Proceeding to ITI despite incomplete trial flush")
-           time.sleep(0.005)  # small intentional gap
+            
+           # block until the trial flush actually finishes, then small gap and clear buffer
+           self._wait_for_saver_complete()
+           time.sleep(0.005)
            self._clear_frame_buffer()
-   
+            
            # start ITI
            self.iti_counter += 1
            iti_str = str(self.iti_counter)
