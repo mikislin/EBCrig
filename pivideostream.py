@@ -74,43 +74,51 @@ class MovieSaver(mp.Process):
        
     def run(self):
         fi = None
+        datalist = []
         while not self.kill_flag.value:
             if self.startSave.value:
                 self.startSave.value = False
                 self.saving_complete.value = False
-                fi = open(self.fname.value,'wb')
+                # Close previous file if somehow left open
+                if fi is not None and not fi.closed:
+                    fi.close()
+                fi = open(self.fname.value, 'wb')
                 datalist = []
-
+   
             if not self.piStreamDone.value:
+                # Accumulate frames and do partial flush when big enough
                 while not self.frame_buffer.empty():
-                    ts,frame = self.frame_buffer.get(block=False)
-                    datalist.append((ts,frame))
-                    if len(datalist)>self.min_flush:
-                       pickle.dump(datalist,fi)
-                       datalist = []
-
+                    ts, frame = self.frame_buffer.get(block=False)
+                    datalist.append((ts, frame))
+                if fi is not None and len(datalist) >= self.min_flush:
+                    pickle.dump(datalist, fi)
+                    datalist = []
+                    print('Wrote to file')
+   
             if self.flushing.value and self.piStreamDone.value:
+                # Final flush for this segment
                 while not self.frame_buffer.empty():
-                    ts,frame = self.frame_buffer.get(block=False)
-                    datalist.append((ts,frame))
+                    ts, frame = self.frame_buffer.get(block=False)
+                    datalist.append((ts, frame))
                 if fi is not None and not fi.closed:
                     pickle.dump(datalist, fi)
-                    datalist = []  # reset after dumping
                     fi.close()
+                datalist = []
                 self.saving_complete.value = True
                 self.flushing.value = False
                 print('Finished saving')
-
-       
-        #Saving final frames if kill flag on
-        if fi != None:
-            if not fi.closed:
-                while not self.frame_buffer.empty():
-                    ts,frame = self.frame_buffer.get(block=False)
-                    datalist.append((ts,frame))
-                pickle.dump(datalist,fi)
-                fi.close()
-                self.saving_complete.value = True
+   
+            time.sleep(0.001)
+   
+        # On kill/exit: flush remaining
+        if fi is not None and not fi.closed:
+            while not self.frame_buffer.empty():
+                ts, frame = self.frame_buffer.get(block=False)
+                datalist.append((ts, frame))
+            if datalist:
+                pickle.dump(datalist, fi)
+            fi.close()
+            self.saving_complete.value = True
        
            
 
@@ -238,15 +246,14 @@ class piCamHandler():
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
 
     
-    def _wait_for_saver_complete(self, timeout=1.0):
-       start = time.time()
-       while not self.saver.saving_complete.value:
-           if time.time() - start > timeout:
-               # If we hit timeout, keep waiting but back off a bit to avoid tight spin.
-               print("Warning: previous save not finished, waiting additional time")  # diagnostic
-               time.sleep(0.1)
-               start = time.time()
+    def _wait_for_saver_complete(self, timeout=0.5):
+       deadline = time.time() + timeout
+       while time.time() < deadline:
+           if self.saver.saving_complete.value:
+               return True
            time.sleep(0.005)
+       print("Warning: previous save not finished before starting new segment")
+       return False
 
     def _clear_frame_buffer(self):
        # Drain any leftover frames so new segment starts fresh
@@ -281,12 +288,13 @@ class piCamHandler():
            self.flushing.value = True
            self.piStream.camera.annotate_text = 'Not recording'
            print('Trial end interrupt detected by picam')
-            
-           # block until the trial flush actually finishes, then small gap and clear buffer
-           self._wait_for_saver_complete()
-           time.sleep(0.005)
+   
+           # wait for trial to finish flushing
+           if not self._wait_for_saver_complete():
+               print("Proceeding to ITI despite incomplete trial flush")
+           time.sleep(0.005)  # small intentional gap
            self._clear_frame_buffer()
-            
+   
            # start ITI
            self.iti_counter += 1
            iti_str = str(self.iti_counter)
