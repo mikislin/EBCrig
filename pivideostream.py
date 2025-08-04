@@ -1,5 +1,4 @@
 
-
 # Control of the camera
 import picamera
 from picamera import PiCamera
@@ -10,7 +9,6 @@ import ctypes
 import RPi.GPIO as GPIO
 import time
 import pickle
-
 
 
    
@@ -247,8 +245,7 @@ class piCamHandler():
         self.saver = MovieSaver(fname=self.fname,startSave=self.startSave,saving=self.saving,frame_buffer=self.frame_buffer,flushing=self.flushing,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
         self.output = ImgOutput(frame_buffer=self.frame_buffer,finished=self.finished,current_frame=self.current_frame,triggerTime=self.triggerTime,saving=self.saving,kill_flag=self.kill_flag)
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
-      
-        
+
     
     def _wait_for_saver_complete(self, timeout=0.5):
        deadline = time.time() + timeout
@@ -334,16 +331,16 @@ class piCamHandler():
             print('ITI end interrupt detected by picam')
 
     def reset_cam(self):
-         self.stream_flag.value = True
-         self.piStream.camera.annotate_background = picamera.Color('black')
-         self.piStream.camera.annotate_text_size = 6
-         self.piStream.camera.annotate_text = ''
+        self.stream_flag.value = True
+        self.piStream.camera.annotate_background = picamera.Color('black')
+        self.piStream.camera.annotate_text_size = 6
+        self.piStream.camera.annotate_text = 'Not recording'
        
     def endStream(self):
         self.stream_flag.value = False
         if self.saving.value:
             self.saving.value = False
-           
+       
     def read(self):
         # return the frame most recently produced to GUI
         if self.stream_flag.value and not self.current_frame.value==b'a':
