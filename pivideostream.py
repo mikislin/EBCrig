@@ -1,3 +1,5 @@
+
+
 # Control of the camera
 import picamera
 from picamera import PiCamera
@@ -197,13 +199,10 @@ class PiVideoStream(mp.Process):
        
        
 class piCamHandler():
-    def __init__(self,resolution=(160,128),framerate=60, total_trials=None): #,sync_flag=None
+    def __init__(self,resolution=(160,128),framerate=60): #,sync_flag=None
         #Params for picamera
         self.resolution = resolution
         self.framerate = framerate
-        self.total_trials = total_trials
-        self._session_done = False
-
        
         #Shared variables for acquisition and saving processes
         self.manager = mp.Manager()
@@ -282,9 +281,6 @@ class piCamHandler():
            self.triggerTime.value = time.perf_counter()
            self.trialNum += 1
            trial_str = str(self.trialNum)
-           if self.total_trials and self.trialNum >= self.total_trials:
-               self._session_done = True
-           trial_str = str(self.trialNum)
            self.fname.value = self.fStub.value + 'cam_trial' + trial_str + '.data'
            self.startSave.value = True
            self.startAcq.value = True
@@ -336,8 +332,6 @@ class piCamHandler():
             self.flushing.value = True
             self.piStream.camera.annotate_text = 'Not recording'
             print('ITI end interrupt detected by picam')
-            if self._session_done:
-               self.end()
 
     def reset_cam(self):
          self.stream_flag.value = True
