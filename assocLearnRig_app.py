@@ -211,6 +211,12 @@ while True:
         if not streaming:
             if vs is None:
                 vs = pvid.piCamHandler()
+            try:
+                n = int(values['numTrial'])
+            except:
+                n = None
+            if vs is None:
+                vs = pvid.piCamHandler(total_trials=n)
             else:
                 vs.reset_cam()
             streaming = True
