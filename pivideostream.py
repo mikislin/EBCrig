@@ -349,8 +349,9 @@ class piCamHandler():
                     break  # exit listener if you only want it once
             except Exception as e:
                 print(f"Serial read error: {e}")
-                time.sleep(0.1)verything to cleanly exit (reuse end logic)
-            self.end()
+                time.sleep(0.1)
+                # everything to cleanly exit (reuse end logic)
+                self.end()
 
     def reset_cam(self):
          self.stream_flag.value = True
