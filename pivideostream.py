@@ -304,15 +304,14 @@ class piCamHandler():
            self._clear_frame_buffer()
    
            # start ITI
-           if not self._session_done: 
-              self.iti_counter += 1
-              iti_str = str(self.iti_counter)
-              self.fname.value = self.fStub.value + 'cam_ITI' + iti_str + '.data'
-              self.triggerTime.value = time.perf_counter()
-              self.startSave.value = True
-              self.startAcq.value = True
-              self.piStream.camera.annotate_text = 'ITI ' + iti_str
-              print('ITI start interrupt detected by picam')
+           self.iti_counter += 1
+           iti_str = str(self.iti_counter)
+           self.fname.value = self.fStub.value + 'cam_ITI' + iti_str + '.data'
+           self.triggerTime.value = time.perf_counter()
+           self.startSave.value = True
+           self.startAcq.value = True
+           self.piStream.camera.annotate_text = 'ITI ' + iti_str
+           print('ITI start interrupt detected by picam')
 
     def iti_interrupt_in(self, channel):
         now = time.time()
