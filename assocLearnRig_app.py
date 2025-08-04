@@ -1,3 +1,4 @@
+
 ####This creates the GUI which subsequently instantiates all hardware objects
 import PySimpleGUI as sg
 from picamera import PiCamera
