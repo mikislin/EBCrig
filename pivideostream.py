@@ -333,26 +333,26 @@ class piCamHandler():
             self.piStream.camera.annotate_text = 'Not recording'
             print('ITI end interrupt detected by picam')
 
-    def _serial_listener(self, port='/dev/ttyUSB0', baud=115200):
-        try:
-            ser = serial.Serial(port, baud, timeout=1)
-        except Exception as e:
-            print(f"Serial port open failed: {e}")
-            return
-        while True:
-            try:
-                line = ser.readline().decode(errors='ignore').strip()
-                if not line:
-                    continue
-                if "session stopping" in line.lower():
-                    print("Detected session stopping from Arduino")
-                    self.handle_session_stop()
-                    break  # exit listener if you only want it once
-            except Exception as e:
-                print(f"Serial read error: {e}")
-                time.sleep(0.1)
-                # everything to cleanly exit (reuse end logic)
-                self.end()
+    # def _serial_listener(self, port='/dev/ttyUSB0', baud=115200):
+    #     try:
+    #         ser = serial.Serial(port, baud, timeout=1)
+    #     except Exception as e:
+    #         print(f"Serial port open failed: {e}")
+    #         return
+    #     while True:
+    #         try:
+    #             line = ser.readline().decode(errors='ignore').strip()
+    #             if not line:
+    #                 continue
+    #             if "session stopping" in line.lower():
+    #                 print("Detected session stopping from Arduino")
+    #                 self.handle_session_stop()
+    #                 break  # exit listener if you only want it once
+    #         except Exception as e:
+    #             print(f"Serial read error: {e}")
+    #             time.sleep(0.1)
+    #             # everything to cleanly exit (reuse end logic)
+    #             self.end()
 
     def reset_cam(self):
          self.stream_flag.value = True
@@ -365,21 +365,21 @@ class piCamHandler():
         if self.saving.value:
             self.saving.value = False
     
-    def handle_session_stop(self):
-        # Gracefully terminate current segment and stop the stream
-        print("Handling session stop: ending current segment and shutting down saving.")
-        # end whatever is recording now
-        self.saving.value = False
-        self.flushing.value = True
-        # wait briefly for flush to finish (reuse existing helper)
-        self._wait_for_saver_complete(timeout=1.0)
-        # stop further activity
-        self.kill_flag.value = True
-        self.stream_flag.value = False
-        try:
-            self.piStream.camera.annotate_text = 'Session stopped'
-        except Exception:
-            pass
+    # def handle_session_stop(self):
+    #     # Gracefully terminate current segment and stop the stream
+    #     print("Handling session stop: ending current segment and shutting down saving.")
+    #     # end whatever is recording now
+    #     self.saving.value = False
+    #     self.flushing.value = True
+    #     # wait briefly for flush to finish (reuse existing helper)
+    #     self._wait_for_saver_complete(timeout=1.0)
+    #     # stop further activity
+    #     self.kill_flag.value = True
+    #     self.stream_flag.value = False
+    #     try:
+    #         self.piStream.camera.annotate_text = 'Session stopped'
+    #     except Exception:
+    #         pass
        
     def read(self):
         # return the frame most recently produced to GUI
