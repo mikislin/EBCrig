@@ -328,6 +328,7 @@ class piCamHandler():
             self.flushing.value = True
             self.piStream.camera.annotate_text = 'Not recording'
             print('ITI end interrupt detected by picam')
+            self.end()
 
     def reset_cam(self):
         self.stream_flag.value = True
