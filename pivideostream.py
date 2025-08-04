@@ -240,7 +240,7 @@ class piCamHandler():
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
         threading.Thread(target=self._deferred_iti_worker, daemon=True).start()
     
-   def _wait_for_saver_complete(self, timeout=0.5):
+    def _wait_for_saver_complete(self, timeout=0.5):
        deadline = time.time() + timeout
        while time.time() < deadline:
            if self.saver.saving_complete.value:
