@@ -695,7 +695,7 @@ void loop()
   
   //Counting for each session/trial/ITI
   unsigned long now = millis();
-  if (trial.itiPending && now - trial.itiPendingStart >= 2000) {
+  if (trial.itiPending && now - trial.itiPendingStart >= 100) {
   	digitalWrite(trial.itiPin, HIGH);
   	trial.itiPinOnOff = true;
   	trial.itiPending = false;
