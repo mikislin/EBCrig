@@ -230,17 +230,15 @@ class piCamHandler():
         GPIO.setmode(GPIO.BCM)
         
         # Inputs from Arduino:
-        self.trial_pin = 25  # corresponds to Arduino → 7
-        self.iti_pin = 24    # corresponds to Arduino → 8
+        self.trial_pin = 25  # corresponds to Arduino - 7
+        self.iti_pin = 24    # corresponds to Arduino - 8
         
         GPIO.setup(self.trial_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         GPIO.setup(self.iti_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         
         # Edge detection with modest debounce
-        GPIO.add_event_detect(self.trial_pin, GPIO.RISING, callback=self.start_trial_recording, bouncetime=50)
-        GPIO.add_event_detect(self.trial_pin, GPIO.FALLING, callback=self.stop_recording, bouncetime=50)
-        GPIO.add_event_detect(self.iti_pin, GPIO.RISING, callback=self.start_iti_recording, bouncetime=50)
-        GPIO.add_event_detect(self.iti_pin, GPIO.FALLING, callback=self.stop_recording, bouncetime=50)
+        GPIO.add_event_detect(self.trial_pin, GPIO.BOTH, callback=self.trial_interrupt_handler, bouncetime=50)   
+        GPIO.add_event_detect(self.iti_pin, GPIO.BOTH, callback=self.iti_interrupt_handler, bouncetime=50)
        
         #Initiate subprocesses to handle image acquisition
         self.saver = MovieSaver(fname=self.fname,startSave=self.startSave,saving=self.saving,frame_buffer=self.frame_buffer,flushing=self.flushing,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
@@ -264,72 +262,63 @@ class piCamHandler():
                self.frame_buffer.get_nowait()
            except Empty:
                break
-              
-    def interrupt_in(self, channel):
-       now = time.time()
-       if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
-           return
-       self._last_interrupt_time = now
-   
-       if GPIO.input(self.trial_pin):  # TRIAL START
-           if not self._wait_for_saver_complete():
-               print("Warning: starting trial before previous flush fully finished")
-           self._clear_frame_buffer()
-   
-           self.triggerTime.value = time.perf_counter()
-           self.trialNum += 1
-           trial_str = str(self.trialNum)
-           self.fname.value = self.fStub.value + 'cam_trial' + trial_str + '.data'
-           self.startSave.value = True
-           self.startAcq.value = True
-           self.piStream.camera.annotate_text = ''
-           print('Trial start interrupt detected by picam')
-       else:  # TRIAL END → ITI START
-           # end trial
-           self.saving.value = False
-           self.flushing.value = True
-           self.piStream.camera.annotate_text = 'Not recording'
-           print('Trial end interrupt detected by picam')
-   
-           # wait for trial to finish flushing
-           if not self._wait_for_saver_complete():
-               print("Proceeding to ITI despite incomplete trial flush")
-           time.sleep(0.005)  # small intentional gap
-           self._clear_frame_buffer()
-   
-           # start ITI
-           self.iti_counter += 1
-           iti_str = str(self.iti_counter)
-           self.fname.value = self.fStub.value + 'cam_ITI' + iti_str + '.data'
-           self.triggerTime.value = time.perf_counter()
-           self.startSave.value = True
-           self.startAcq.value = True
-           self.piStream.camera.annotate_text = 'ITI ' + iti_str
-           print('ITI start interrupt detected by picam')
 
-    def iti_interrupt_in(self, channel):
+    def trial_interrupt_handler(self, channel):
         now = time.time()
         if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
             return
         self._last_interrupt_time = now
-   
-        if GPIO.input(self.iti_pin):  # explicit ITI START
-            self._wait_for_saver_complete()
+        
+        # Check the pin state to determine if it was a RISING or FALLING edge
+        if GPIO.input(self.trial_pin):  # Pin is HIGH -> RISING edge -> TRIAL START
+            if not self._wait_for_saver_complete():
+                print("Warning: starting trial before previous flush fully finished")
             self._clear_frame_buffer()
-   
-            self.iti_counter += 1
-            iti_str = str(self.iti_counter)
-            self.fname.value = self.fStub.value + 'cam_ITI' + iti_str + '.data'
+            
+            self.trialNum += 1
             self.triggerTime.value = time.perf_counter()
+            self.fname.value = f"{self.fStub.value}cam_trial{self.trialNum}.data"
+            
             self.startSave.value = True
             self.startAcq.value = True
-            self.piStream.camera.annotate_text = 'ITI ' + iti_str
-            print('ITI start interrupt detected by picam (via iti pin)')
-        else:  # ITI END / session end
-            self.saving.value = False
-            self.flushing.value = True
-            self.piStream.camera.annotate_text = 'Not recording'
-            print('ITI end interrupt detected by picam')
+            self.piStream.camera.annotate_text = f'Trial {self.trialNum}'
+            print('Trial start interrupt detected by picam')
+        
+        else:  # Pin is LOW -> FALLING edge -> TRIAL END
+            if self.saving.value:
+                self.saving.value = False
+                self.flushing.value = True
+                self.piStream.camera.annotate_text = 'Not recording'
+                print('Trial end interrupt detected by picam')
+
+    def iti_interrupt_handler(self, channel):
+        now = time.time()
+        if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
+            return
+        self._last_interrupt_time = now
+
+        # Check the pin state to determine if it was a RISING or FALLING edge
+        if GPIO.input(self.iti_pin): # Pin is HIGH -> RISING edge -> ITI START
+            if not self._wait_for_saver_complete():
+                print("Warning: starting ITI before previous flush finished")
+            self._clear_frame_buffer()
+            
+            self.iti_counter += 1
+            self.triggerTime.value = time.perf_counter()
+            self.fname.value = f"{self.fStub.value}cam_ITI{self.iti_counter}.data"
+            
+            self.startSave.value = True
+            self.startAcq.value = True
+            self.piStream.camera.annotate_text = f'ITI {self.iti_counter}'
+            print('ITI start interrupt detected by picam')
+
+        else: # Pin is LOW -> FALLING edge -> ITI END
+            if self.saving.value:
+                self.saving.value = False
+                self.flushing.value = True
+                self.piStream.camera.annotate_text = 'Not recording'
+                print('ITI end interrupt detected by picam')
+               
 
     def reset_cam(self):
         self.stream_flag.value = True
