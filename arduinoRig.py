@@ -5,7 +5,7 @@ import os.path
 from threading import Thread
 import threading
 import sys
-from data_handler import data_handler                      
+from data_handler import data_handler
 
      
 #
@@ -120,7 +120,6 @@ class arduinoRig():
             if 'stopSession' in cat_string:
                 self.flushing = True
                 print('arduinoRig.NewSerialData() detected session stopping')
-                self.cam_handler.endStream()
             if 'startTrial' in cat_string and not self.trialRunning:
                 self.trial['trialNumber'] += 1
                 self.dat = cat_string
