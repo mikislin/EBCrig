@@ -237,8 +237,10 @@ class piCamHandler():
         GPIO.setup(self.iti_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         
         # Edge detection with modest debounce
-        GPIO.add_event_detect(self.trial_pin, GPIO.BOTH, callback=self.interrupt_in, bouncetime=50)
-        GPIO.add_event_detect(self.iti_pin, GPIO.BOTH, callback=self.iti_interrupt_in, bouncetime=50)
+        GPIO.add_event_detect(self.trial_pin, GPIO.RISING, callback=self.start_trial_recording, bouncetime=50)
+        GPIO.add_event_detect(self.trial_pin, GPIO.FALLING, callback=self.stop_recording, bouncetime=50)
+        GPIO.add_event_detect(self.iti_pin, GPIO.RISING, callback=self.start_iti_recording, bouncetime=50)
+        GPIO.add_event_detect(self.iti_pin, GPIO.FALLING, callback=self.stop_recording, bouncetime=50)
        
         #Initiate subprocesses to handle image acquisition
         self.saver = MovieSaver(fname=self.fname,startSave=self.startSave,saving=self.saving,frame_buffer=self.frame_buffer,flushing=self.flushing,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
@@ -380,3 +382,47 @@ class piCamHandler():
         #Release resources
         self.piStream.camera.close()
         GPIO.cleanup()
+    
+    def stop_recording(self, channel):
+        now = time.time()
+        if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
+            return
+        self._last_interrupt_time = now
+        if self.saving.value:
+            self.saving.value = False
+            self.flushing.value = True
+            self.piStream.camera.annotate_text = 'Not recording'
+            print(f'Recording stopped by pin {channel}. Flushing buffer.')
+    
+    def start_trial_recording(self, channel):
+        now = time.time()
+        if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
+            return
+        self._last_interrupt_time = now
+        
+        if not self._wait_for_saver_complete():
+            print("Warning: starting trial before previous save finished.")
+        self._clear_frame_buffer()
+        self.trialNum += 1
+        self.triggerTime.value = time.perf_counter()
+        self.fname.value = f"{self.fStub.value}cam_trial{self.trialNum}.data"
+        self.startSave.value = True
+        self.startAcq.value = True
+        self.piStream.camera.annotate_text = f'Trial {self.trialNum}'
+        print('Trial start interrupt detected.')
+    
+    def start_iti_recording(self, channel):
+        now = time.time()
+        if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
+            return
+        self._last_interrupt_time = now
+        if not self._wait_for_saver_complete():
+            print("Warning: starting ITI before previous save finished.")
+        self._clear_frame_buffer()
+        self.iti_counter += 1
+        self.triggerTime.value = time.perf_counter()
+        self.fname.value = f"{self.fStub.value}cam_ITI{self.iti_counter}.data"
+        self.startSave.value = True
+        self.startAcq.value = True
+        self.piStream.camera.annotate_text = f'ITI {self.iti_counter}'
+        print('ITI start interrupt detected.')
