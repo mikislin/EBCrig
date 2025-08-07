@@ -1,4 +1,3 @@
-
 /*
  * Author: Joey Broussard
  * PNI, 20200820
@@ -48,9 +47,6 @@ struct trial
   int trialPin; //pin for projecting current trial state
   int itiPin; //pin for projecting current ITI state
   boolean itiPinOnOff; // flag for current ITI state
-  //Deferred ITI Start
-  boolean itiPending; // set when trial ends, delay ITI
-  unsigned long itiPendingStart; // millis() when trial ended 
   //CS and US
   String stimPairType; // rng used to determine CS_US, CS, or US trial type
   unsigned long CSstartMillis; //millis at start of currentPulse
@@ -203,9 +199,6 @@ void setup()
   trial.pinOnOff = false;//trial didn't just end
   pinMode(trial.trialPin, OUTPUT);
   digitalWrite(trial.trialPin, LOW);
-  // initialize ITI start
-  trial.itiPending = false;
-  trial.itiPendingStart = 0; 
   trial.itiPin = 8;
   trial.itiPinOnOff = false;
   pinMode(trial.itiPin, OUTPUT);
@@ -342,10 +335,13 @@ void stopTrial(unsigned long now) {
   }
   trial.trialIsRunning = false;
   digitalWrite(trial.trialPin,LOW);
-  //Schedule ITI pin to go HIGH 100 ms later
-  trial.itiPending = true;
-  trial.itiPendingStart = now;
   serialOut(now, "stopTrial", trial.currentTrial);
+
+  delay(100); 
+  
+  digitalWrite(trial.itiPin, HIGH);
+  trial.itiPinOnOff = true;
+  
 
   //Reset the 2P
   twoP.changeFile = true;
@@ -354,8 +350,7 @@ void stopTrial(unsigned long now) {
   trial.ITI = random(trial.ITIlow,trial.ITIhigh);
   trial.ITIstartMillis = now;
   trial.ITIstillStartMillis = now;
-	
-  
+  serialOut(itiStart, "startITI", trial.currentTrial);
 }
 
 //End Session
@@ -695,14 +690,6 @@ void loop()
   
   //Counting for each session/trial/ITI
   unsigned long now = millis();
-  if (trial.itiPending && now - trial.itiPendingStart >= 500) {
-  	digitalWrite(trial.itiPin, HIGH);
-  	trial.itiPinOnOff = true;
-  	trial.itiPending = false;
-	trial.ITIstartMillis = now;
-    trial.ITIstillStartMillis = now;
-   	serialOut(now, "startITI", trial.currentTrial);
-  }
   trial.msIntoSession = now-trial.sessionStartMillis;
   trial.msIntoTrial = now-trial.trialStartMillis;
   trial.msIntoITI = now - trial.ITIstartMillis;
