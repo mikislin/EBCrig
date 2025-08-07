@@ -337,7 +337,7 @@ void stopTrial(unsigned long now) {
   digitalWrite(trial.trialPin,LOW);
   serialOut(now, "stopTrial", trial.currentTrial);
 
-  delay(100); 
+  delay(500); 
   
   digitalWrite(trial.itiPin, HIGH);
   trial.itiPinOnOff = true;
