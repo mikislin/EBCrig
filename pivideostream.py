@@ -237,7 +237,7 @@ class piCamHandler():
         GPIO.setup(self.iti_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
         
         # Edge detection with modest debounce
-        GPIO.add_event_detect(self.trial_pin, GPIO.BOTH, callback=self.trial_interrupt_handler, bouncetime=50)   
+        GPIO.add_event_detect(self.trial_pin, GPIO.BOTH, callback=self.trial_interrupt_handler, bouncetime=50)   # bouncetime expressed in milliseconds
         GPIO.add_event_detect(self.iti_pin, GPIO.BOTH, callback=self.iti_interrupt_handler, bouncetime=50)
        
         #Initiate subprocesses to handle image acquisition
