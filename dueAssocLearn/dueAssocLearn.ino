@@ -698,7 +698,11 @@ void loop()
   trial.inUS = (trial.msIntoTrial > trial.preCSdur + trial.CS_USinterval) && (trial.msIntoTrial < (trial.preCSdur + trial.CS_USinterval + trial.USdur));
 
   //Start a trial at the end of the ITI period
-  if (!trial.trialIsRunning && trial.sessionIsRunning  && (trial.msIntoITI>trial.ITItimeout || (trial.msIntoStillITI>trial.ITI))){
+//  if (!trial.trialIsRunning && trial.sessionIsRunning  && (trial.msIntoITI>trial.ITItimeout || (trial.msIntoStillITI>trial.ITI))){
+//    startTrial(now);
+//  }
+
+  if (!trial.trialIsRunning && trial.sessionIsRunning  && trial.msIntoStillITI>trial.ITI){
     startTrial(now);
   }
 
