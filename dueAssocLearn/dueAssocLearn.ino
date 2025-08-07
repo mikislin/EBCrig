@@ -306,6 +306,8 @@ void startTrial(unsigned long now){
     digitalWrite(trial.trialPin,HIGH);
     serialOut(now,"startTrial",trial.currentTrial);
 
+	delay(500)
+
     digitalWrite(trial.itiPin, LOW);
     trial.itiPinOnOff = false;
     trial.trialIsRunning = true;
@@ -337,14 +339,16 @@ void stopTrial(unsigned long now) {
   digitalWrite(trial.trialPin,LOW);
   serialOut(now, "stopTrial", trial.currentTrial);
 
+  digitalWrite(twoP.fileChangePin, HIGH);
+  serialOut(now, "newFile", trial.currentTrial);
+  delay(twoP.fileChangeInt);              // e.g. 10 ms
+  digitalWrite(twoP.fileChangePin, LOW);
+
   delay(500); 
-  
+
+  unsigned long itiTime = millis();
   digitalWrite(trial.itiPin, HIGH);
   trial.itiPinOnOff = true;
-  
-
-  //Reset the 2P
-  twoP.changeFile = true;
   
   //Set time to wait until next trial starts
   trial.ITI = random(trial.ITIlow,trial.ITIhigh);
