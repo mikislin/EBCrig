@@ -306,7 +306,7 @@ void startTrial(unsigned long now){
     digitalWrite(trial.trialPin,HIGH);
     serialOut(now,"startTrial",trial.currentTrial);
 
-	delay(500)
+	delay(500);
 
     digitalWrite(trial.itiPin, LOW);
     trial.itiPinOnOff = false;
@@ -354,7 +354,7 @@ void stopTrial(unsigned long now) {
   trial.ITI = random(trial.ITIlow,trial.ITIhigh);
   trial.ITIstartMillis = now;
   trial.ITIstillStartMillis = now;
-  serialOut(itiStart, "startITI", trial.currentTrial);
+  serialOut(now, "startITI", trial.currentTrial);
 }
 
 //End Session
