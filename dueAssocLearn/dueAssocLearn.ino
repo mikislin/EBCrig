@@ -204,8 +204,8 @@ void setup()
   pinMode(trial.trialPin, OUTPUT);
   digitalWrite(trial.trialPin, LOW);
   // initialize ITI start
-  trial.itiPending = false
-  trial.itiPendingStart = 0 
+  trial.itiPending = false;
+  trial.itiPendingStart = 0; 
   trial.itiPin = 8;
   trial.itiPinOnOff = false;
   pinMode(trial.itiPin, OUTPUT);
@@ -343,8 +343,8 @@ void stopTrial(unsigned long now) {
   trial.trialIsRunning = false;
   digitalWrite(trial.trialPin,LOW);
   //Schedule ITI pin to go HIGH 100 ms later
-  trial.itiPending = true
-  trial.itiPendingStart = now
+  trial.itiPending = true;
+  trial.itiPendingStart = now;
   serialOut(now, "stopTrial", trial.currentTrial);
 
   //Reset the 2P
@@ -699,6 +699,8 @@ void loop()
   	digitalWrite(trial.itiPin, HIGH);
   	trial.itiPinOnOff = true;
   	trial.itiPending = false;
+	trial.ITIstartMillis = now;
+    trial.ITIstillStartMillis = now;
    	serialOut(now, "startITI", trial.currentTrial);
   }
   trial.msIntoSession = now-trial.sessionStartMillis;
