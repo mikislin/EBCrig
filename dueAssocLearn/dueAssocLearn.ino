@@ -274,7 +274,7 @@ void startSession(unsigned long now) {
     serialOut(now, "numTrial", trial.numTrial);
     serialOut(now, "trialDur", trial.trialDur);
     trial.currentTrial = 0;
-	trial.currentITI = 0
+	
     
     serialOut(now, "startSession", trial.sessionNumber);
     digitalWrite(trial.trialPin,HIGH);
@@ -303,7 +303,7 @@ void startSession(unsigned long now) {
 void startTrial(unsigned long now){
   if (trial.trialIsRunning==false){
     trial.currentTrial += 1;
-	trial.currentITI += 1;
+	
 	
 
     trial.trialStartMillis = now;
@@ -351,12 +351,12 @@ void stopTrial(unsigned long now) {
   if (now > trial.ITIstartMillis + 500) {
 	  digitalWrite(trial.itiPin, HIGH);
 	  trial.itiPinOnOff = true;
-	  serialOut(now,"Deferred ITI Start",trial.currentITI);
+	  serialOut(now,"Deferred ITI Start",trial.currentTrial);
   }
   if (now < trial.ITIstartMillis + trial.ITI + 500) {
   		digitalWrite(trial.itiPin, LOW);
   	    trial.itiPinOnOff = false;
-	    serialOut(now,"Preponed ITI End",trial.currentITI);
+	    serialOut(now,"Preponed ITI End",trial.currentTrial);
   }
 	  
 	  
