@@ -48,7 +48,7 @@ struct trial
   int itiPin; //pin for projecting current ITI state
   boolean itiPinOnOff; // flag for current ITI state
   boolean itiPending; // wait to kick off ITI
-  uint32_t itiPendingStart; // millis() when we ended the trial
+  unsigned long itiPendingStart; // millis() when we ended the trial
   //CS and US
   String stimPairType; // rng used to determine CS_US, CS, or US trial type
   unsigned long CSstartMillis; //millis at start of currentPulse
@@ -207,6 +207,7 @@ void setup()
   digitalWrite(trial.itiPin, LOW);
   trial.itiPending = false;
   trial.itiPendingStart = 0;
+	
   
   //rotary encoder
   rotaryencoder.pinA = 3;
