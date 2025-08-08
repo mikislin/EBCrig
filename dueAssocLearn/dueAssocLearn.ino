@@ -380,7 +380,7 @@ void stopSession(unsigned long now) {
   serialOut(now,"2Poff",trial.currentTrial);
   trial.sessionNumber += 1;
   trial.currentTrial = 0;
-  trial.currentITI = 0
+  
 
   //I2C to inactivate slp pin DTSC wheel
   wireOut(0,1);
