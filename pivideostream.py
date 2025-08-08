@@ -247,9 +247,9 @@ class piCamHandler():
 
     
     def _wait_for_saver_complete(self):
-       while not self.saver.saving_complete.value:
-        time.sleep(0.01)
-    return True
+        while not self.saver.saving_complete.value:
+            time.sleep(0.01)
+        return True
 
     def _clear_frame_buffer(self):
        # Drain any leftover frames so new segment starts fresh
