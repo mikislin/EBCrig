@@ -237,7 +237,7 @@ void setup()
   //Initialize as I2C master, set addresses for slaves
   Wire.begin();//join I2C bus with no given address you master, you
   // 0x4B is the default i2c addressfor MAX9744, initialization sound level of 5 is ~background
-  setvolume(5);
+  // setvolume(5);
 
   //Set any pins used in other setups low
   pinMode(9,OUTPUT);
@@ -361,7 +361,7 @@ void stopTrial(unsigned long now) {
 	  
 	  
   }
-}
+
 
 //End Session
 void stopSession(unsigned long now) {
