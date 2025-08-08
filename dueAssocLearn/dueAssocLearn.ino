@@ -45,6 +45,8 @@ struct trial
   //Trial pin
   boolean pinOnOff; //controls transitioning pin state
   int trialPin; //pin for projecting current trial state
+  boolean trialPending; // wait to kick off trial
+  unsigned long trialPendingStart; // millis() when we crossed the ITI threshold
   int itiPin; //pin for projecting current ITI state
   boolean itiPinOnOff; // flag for current ITI state
   boolean itiPending; // wait to kick off ITI
@@ -201,6 +203,8 @@ void setup()
   trial.pinOnOff = false;//trial didn't just end
   pinMode(trial.trialPin, OUTPUT);
   digitalWrite(trial.trialPin, LOW);
+  trial.trialPending = false;
+  trial.trialPendingStart = 0; 
   trial.itiPin = 8;
   trial.itiPinOnOff = false;
   pinMode(trial.itiPin, OUTPUT);
@@ -714,8 +718,11 @@ void loop() {
 //    startTrial(now);
 //  }
 
-  if (!trial.trialIsRunning && trial.sessionIsRunning  && trial.msIntoStillITI>trial.ITI){
+  if (trial.trialPending &&
+      now - trial.trialPendingStart >= 500)
+  {
     startTrial(now);
+    trial.trialPending = false;
   }
 
   //Updating all hardware components
