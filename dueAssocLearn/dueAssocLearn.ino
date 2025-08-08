@@ -1,3 +1,4 @@
+
 /*
  * Author: Joey Broussard
  * PNI, 20200820
@@ -45,12 +46,8 @@ struct trial
   //Trial pin
   boolean pinOnOff; //controls transitioning pin state
   int trialPin; //pin for projecting current trial state
-  boolean trialPending; // wait to kick off trial
-  unsigned long trialPendingStart; // millis() when we crossed the ITI threshold
   int itiPin; //pin for projecting current ITI state
   boolean itiPinOnOff; // flag for current ITI state
-  boolean itiPending; // wait to kick off ITI
-  unsigned long itiPendingStart; // millis() when we ended the trial
   //CS and US
   String stimPairType; // rng used to determine CS_US, CS, or US trial type
   unsigned long CSstartMillis; //millis at start of currentPulse
@@ -203,15 +200,10 @@ void setup()
   trial.pinOnOff = false;//trial didn't just end
   pinMode(trial.trialPin, OUTPUT);
   digitalWrite(trial.trialPin, LOW);
-  trial.trialPending = false;
-  trial.trialPendingStart = 0; 
   trial.itiPin = 8;
   trial.itiPinOnOff = false;
   pinMode(trial.itiPin, OUTPUT);
   digitalWrite(trial.itiPin, LOW);
-  trial.itiPending = false;
-  trial.itiPendingStart = 0;
-	
   
   //rotary encoder
   rotaryencoder.pinA = 3;
@@ -314,10 +306,11 @@ void startTrial(unsigned long now){
     trial.trialStartMillis = now;
     digitalWrite(trial.trialPin,HIGH);
     serialOut(now,"startTrial",trial.currentTrial);
-    digitalWrite(trial.itiPin, LOW);
-    trial.itiPinOnOff = false;
-    trial.trialIsRunning = true;
-    
+    if (now < trial.ITIstartMillis + trial.ITI + 500) {
+		digitalWrite(trial.itiPin, LOW);
+	    trial.itiPinOnOff = false;
+	    trial.trialIsRunning = true;
+	}
     //Reset the 2P
     twoP.changeFile = true;
 
@@ -350,16 +343,17 @@ void stopTrial(unsigned long now) {
   delay(twoP.fileChangeInt);              // e.g. 10 ms
   digitalWrite(twoP.fileChangePin, LOW);
 
-  trial.itiPending       = true;
-  trial.itiPendingStart  = now;           // stamp "trial ended" time
-  trial.ITIstartMillis   = now + 100;     // shift your ITI start
-  trial.ITIstillStartMillis = now + 100;
-  
-  //Set time to wait until next trial starts
-  trial.ITI = random(trial.ITIlow,trial.ITIhigh);
-  trial.ITIstartMillis = now;
-  trial.ITIstillStartMillis = now;
-
+  unsigned long itiTime = millis();
+  if (now > trial.ITIstartMillis + 500) {
+	  digitalWrite(trial.itiPin, HIGH);
+	  trial.itiPinOnOff = true;
+	  
+	  //Set time to wait until next trial starts
+	  trial.ITI = random(trial.ITIlow,trial.ITIhigh);
+	  trial.ITIstartMillis = now;
+	  trial.ITIstillStartMillis = now;
+	  serialOut(now, "startITI", trial.currentTrial);
+  }
 }
 
 //End Session
@@ -694,15 +688,11 @@ void update2P(unsigned long now){
 
 
 /*Loop*/
-void loop() { 
-  unsigned long now = millis();  //Counting for each session/trial/ITI
-  if (trial.itiPending &&
-      now - trial.itiPendingStart >= 100) {
-    digitalWrite(trial.itiPin, HIGH);
-    trial.itiPinOnOff = true;
-    serialOut(now, "startITI", trial.currentTrial);
-    trial.itiPending = false;
-  }
+void loop()
+{
+  
+  //Counting for each session/trial/ITI
+  unsigned long now = millis();
   trial.msIntoSession = now-trial.sessionStartMillis;
   trial.msIntoTrial = now-trial.trialStartMillis;
   trial.msIntoITI = now - trial.ITIstartMillis;
@@ -718,11 +708,8 @@ void loop() {
 //    startTrial(now);
 //  }
 
-  if (trial.trialPending &&
-      now - trial.trialPendingStart >= 500)
-  {
+  if (!trial.trialIsRunning && trial.sessionIsRunning  && trial.msIntoStillITI>trial.ITI){
     startTrial(now);
-    trial.trialPending = false;
   }
 
   //Updating all hardware components
