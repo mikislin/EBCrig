@@ -246,14 +246,10 @@ class piCamHandler():
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
 
     
-    def _wait_for_saver_complete(self, timeout=1):
-       deadline = time.time() + timeout
-       while time.time() < deadline:
-           if self.saver.saving_complete.value:
-               return True
-           time.sleep(0.005)
-       print("Warning: previous save not finished before starting new segment")
-       return False
+    def _wait_for_saver_complete(self):
+       while not self.saver.saving_complete.value:
+        time.sleep(0.01)
+    return True
 
     def _clear_frame_buffer(self):
        # Drain any leftover frames so new segment starts fresh
