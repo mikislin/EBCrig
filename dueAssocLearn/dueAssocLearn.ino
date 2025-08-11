@@ -330,39 +330,26 @@ void startTrial(unsigned long now){
 
 //End trial
 void stopTrial(unsigned long now) {
-  //If this is the last trial, end session
-  if (trial.currentTrial == trial.numTrial-1) {
-    stopSession(now);
-    return;
-  }
+  if (trial.currentTrial == trial.numTrial-1) { stopSession(now); return; }
+
   trial.trialIsRunning = false;
-  digitalWrite(trial.trialPin,LOW);
+  digitalWrite(trial.trialPin, LOW);
   serialOut(now, "stopTrial", trial.currentTrial);
 
+  // start a new 2P file for the ITI
   digitalWrite(twoP.fileChangePin, HIGH);
   serialOut(now, "newFile", trial.currentTrial);
-  delay(twoP.fileChangeInt);              // e.g. 10 ms
+  delay(twoP.fileChangeInt);
   digitalWrite(twoP.fileChangePin, LOW);
 
-  //Set time to wait until next trial starts
-	  trial.ITI = random(trial.ITIlow,trial.ITIhigh);
-	  trial.ITIstartMillis = now;
-	  trial.ITIstillStartMillis = now;
-	  serialOut(now, "startITI", trial.currentTrial);
-	
-  if (now > trial.ITIstartMillis + 500) {
-	  digitalWrite(trial.itiPin, HIGH);
-	  trial.itiPinOnOff = true;
-	  
-  }
-  if (now < trial.ITIstartMillis + trial.ITI + 500) {
-  		digitalWrite(trial.itiPin, LOW);
-  	    trial.itiPinOnOff = false;
-	    
-  }
-	  
-	  
-  }
+  // schedule ITI timing (but DO NOT toggle the ITI pin here)
+  trial.ITI = random(trial.ITIlow, trial.ITIhigh);
+  trial.ITIstartMillis = now;            // ITI "start time" stamp
+  trial.ITIstillStartMillis = now;       // your existing still-motion timer
+  trial.itiPinOnOff = false;             // we’re not in the ITI-high window yet
+
+  // (no digitalWrite to trial.itiPin here)
+}
 
 
 //End Session
@@ -703,11 +690,33 @@ void loop()
   
   //Counting for each session/trial/ITI
   unsigned long now = millis();
+
+  // --- ITI pin timing: raise 500 ms after ITI starts; lower at ITI end ---
+  if (!trial.trialIsRunning && trial.sessionIsRunning) {
+	// raise HIGH after 500 ms into ITI
+	if (!trial.itiPinOnOff && (now - trial.ITIstartMillis) >= 500UL) {
+	  digitalWrite(trial.itiPin, HIGH);
+	  trial.itiPinOnOff = true;
+	  serialOut(now, "startITI", trial.currentTrial);
+	}
+	// lower LOW at (500 ms + ITI duration)
+	if (trial.itiPinOnOff && (now - trial.ITIstartMillis) >= (500UL + trial.ITI)) {
+	  digitalWrite(trial.itiPin, LOW);
+	  trial.itiPinOnOff = false;
+	  serialOut(now, "endITI", trial.currentTrial);
+	}
+  } 
   trial.msIntoSession = now-trial.sessionStartMillis;
   trial.msIntoTrial = now-trial.trialStartMillis;
   trial.msIntoITI = now - trial.ITIstartMillis;
   trial.msIntoStillITI = now - trial.ITIstillStartMillis;
-  
+
+  if (!trial.trialIsRunning &&
+      trial.sessionIsRunning &&
+      trial.msIntoStillITI > trial.ITI) {
+    startTrial(now);
+  }
+	
   //Booleans for state controller
   trial.inCRcount = (trial.msIntoTrial > (trial.preCSdur + trial.CS_USinterval - trial.CRcountDur)) && (trial.msIntoTrial < (trial.preCSdur + trial.CS_USinterval));//interval to deterimine if animal makes CR
   trial.inCS = (trial.msIntoTrial > trial.preCSdur) && (trial.msIntoTrial < trial.preCSdur + trial.CSdur);
