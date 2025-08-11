@@ -1,417 +1,188 @@
-# Control of the camera
-import picamera
+import PySimpleGUI as sg
 from picamera import PiCamera
-import io
-import multiprocessing as mp
-from queue import Empty
-import ctypes
 import RPi.GPIO as GPIO
+import pivideostream as pvid
+import cv2
+import numpy as np
 import time
-import pickle
-
-
-   
-class ImgOutput(object):
-    #Object with write method that informs other threads when a frame is available
-    def __init__(self,frame_buffer,finished,current_frame,triggerTime,saving,kill_flag):
-        self.saving = saving
-        self.frame_buffer = frame_buffer
-        self.current_frame = current_frame
-        self.triggerTime = triggerTime
-        self.kill_flag = kill_flag
-        self.buffer = io.BytesIO()
-        self.finished = finished
-        self.condition = mp.Condition()
-
-    def write(self, buf):
-        if buf.startswith(b'\xff\xd8') and not self.kill_flag.value:
-            # New frame, copy the existing buffer's content and notify all
-            # clients it's available
-            ts = time.perf_counter()-self.triggerTime.value-0.02
-            #self.camTS.value = time.perf_counter()
-            size = self.buffer.tell()
-            if size:
-                self.buffer.seek(0)
-                frame = self.buffer.read(size)
-                self.current_frame.value = frame
-                if self.saving.value:
-                    self.frame_buffer.put([ts,frame])
-                self.buffer.seek(0)
-                time.sleep(0.001)
-        self.buffer.write(buf)
-       
-    def flush(self):
-        self.frame_buffer.close()
-        self.frame_buffer.join_thread()
-        self.finished.set()
-   
-
-class MovieSaver(mp.Process):
-    #Handles the saving of movie data as a separate process called in picamhandler
-    def __init__(self, fname, startSave, saving, frame_buffer, flushing, buffer_size=2000, min_flush=200,piStreamDone=None,kill_flag=None):#,triggerTime=None,camTS=None
-        super(MovieSaver, self).__init__()
-        self.daemon = True
-           
-        #Saving parameters
-        self.fname = fname
-        self.buffer_size = buffer_size
-        self.min_flush = min_flush
-       
-        ##Inherited flags and containers
-        self.saving = saving
-        self.startSave = startSave
-        self.frame_buffer = frame_buffer
-        self.flushing = flushing
-        self.piStreamDone = piStreamDone
-        #self.triggerTime = triggerTime
-        #self.camTS = camTS
-        self.kill_flag = kill_flag
-
-        #Process-specific
-        self.saving_complete = mp.Value('b',True)
-       
-        self.start()
-       
-    def run(self):
-        fi = None
-        datalist = []
-        while not self.kill_flag.value:
-            if self.startSave.value:
-                self.startSave.value = False
-                self.saving_complete.value = False
-                # Close previous file if somehow left open
-                if fi is not None and not fi.closed:
-                    fi.close()
-                fi = open(self.fname.value, 'wb')
-                datalist = []
-   
-            if not self.piStreamDone.value:
-                # Accumulate frames and do partial flush when big enough
-                while not self.frame_buffer.empty():
-                    ts, frame = self.frame_buffer.get(block=False)
-                    datalist.append((ts, frame))
-                if fi is not None and len(datalist) >= self.min_flush:
-                    pickle.dump(datalist, fi)
-                    datalist = []
-                    print('Wrote to file')
-   
-            if self.flushing.value and self.piStreamDone.value:
-                # Final flush for this segment
-                while not self.frame_buffer.empty():
-                    ts, frame = self.frame_buffer.get(block=False)
-                    datalist.append((ts, frame))
-                if fi is not None and not fi.closed:
-                    pickle.dump(datalist, fi)
-                    fi.close()
-                datalist = []
-                self.saving_complete.value = True
-                self.flushing.value = False
-                print('Finished saving')
-   
-            time.sleep(0.001)
-   
-        # On kill/exit: flush remaining
-        if fi is not None and not fi.closed:
-            while not self.frame_buffer.empty():
-                ts, frame = self.frame_buffer.get(block=False)
-                datalist.append((ts, frame))
-            if datalist:
-                pickle.dump(datalist, fi)
-            fi.close()
-            self.saving_complete.value = True
-       
-           
-
-class PiVideoStream(mp.Process):
-    DEBOUNCE_SEC = 0.05
-   
-    def __init__(self,output=None,resolution=(160, 128),framerate=60,frame_buffer=None,finished=None,stream_flag=None,saving=None,sync_flag=None,startAcq=None,triggerTime=None,piStreamDone=None,kill_flag=None,**kwargs):
-        #Note output could be an instantiation of ImgOutput or any file-type object
-        #with a write method that returns each frame capture as the write
-        super(PiVideoStream,self).__init__()
-        self.daemon = True
-       
-        ##Initialize and set up the camera
-        self.output = output
-        self.frame_buffer = frame_buffer
-        self.finished = finished
-        self.camera = PiCamera()
-        # set camera parameters
-        self.camera.resolution = resolution
-        self.camera.framerate = framerate
-        self.camera.rotation = 0
-        # consistent pictures and timing on timestamps
-        self.camera.iso = 800
-        time.sleep(1)
-        self.camera.shutter_speed = self.camera.exposure_speed
-        self.camera.exposure_mode = 'off'
-        g = self.camera.awb_gains
-        self.camera.awb_mode = 'off'
-        self.camera.awb_gains = g
-        self.camera.clock_mode = 'raw'
-        #Setting up camera clock, outputs, and initial image annotation
-        self.camera.start_recording(self.output, format='mjpeg')
-        self.camera.annotate_background = picamera.Color('black')
-        self.camera.annotate_text_size = 6
-        self.camera.annotate_text = 'Not recording'
-       
-        ##For interacting with the save and GPIO processes
-        #Shared processes inherited from parent
-        self.stream_flag = stream_flag
-        self.saving = saving
-        self.startAcq = startAcq
-        self.triggerTime = triggerTime
-        self.piStreamDone = piStreamDone
-        self.kill_flag = kill_flag
-       
-        ##Process-specific flags
-        self.thread_complete = mp.Value('b',True)
-        self.getSaveRead = mp.Value('b',False)
-       
-        # set optional camera parameters (refer to PiCamera docs)
-        for (arg, value) in kwargs.items():
-            setattr(self.camera, arg, value)
-       
-        self.start()
-       
-    def run(self):
-        while not self.kill_flag.value:
-            #Looking for GPIO or GUI to flip startAcq flag
-            if self.startAcq.value:
-                #Get time from trigger in ms
-                triggerLatency = time.perf_counter() - self.triggerTime.value
-                #If longer than one frame grab, we entered between grabs-> subtract one frame time off
-                if triggerLatency>1/self.camera.framerate:
-                    self.triggerTime.value = self.triggerTime.value - 1/self.camera.framerate
-                self.startAcq.value = False
-                self.saving.value = True
-                self.piStreamDone.value = False
-               
-            if not self.saving.value and not self.startAcq.value:
-                #reset flags
-                self.piStreamDone.value = True
-            time.sleep(0.001)
-           
-        self.piStreamDone.value = True
-       
-       
-class piCamHandler():
-    def __init__(self,resolution=(160,128),framerate=60): #,sync_flag=None
-        #Params for picamera
-        self.resolution = resolution
-        self.framerate = framerate
-       
-        #Shared variables for acquisition and saving processes
-        self.manager = mp.Manager()
-        self.fname = self.manager.Value(ctypes.c_char_p, time.strftime("%Y%m%d") + '_'+ time.strftime("%H%M%S") + '_'+ 'rig.data')
-        self.fStub = self.manager.Value(ctypes.c_char_p,"noStub")
-        self.frame_buffer = mp.Queue()
-        self.finished = mp.Event()
-        self.camTS = mp.Value('d',0)
-        self.current_frame = mp.Array(ctypes.c_char_p,b'a')
-        self.current_frame.value = b'a'
-        self.stream_flag = mp.Value('b',True)
-        self.startSave = mp.Value('b',False)
-        self.startAcq = mp.Value('b',False)
-        self.saving = mp.Value('b',False)
-        self.flushing = mp.Value('b',False)
-        self.triggerTime = mp.Value('d',0)
-        self.piStreamDone = mp.Value('b',True)
-        self.kill_flag = mp.Value('b',False)
-        self.trialNum = 0
-        self.iti_counter = 0
-        self._last_interrupt_time = 0.0
-        self.DEBOUNCE_SEC = 0.05
-
-       
-        #Initializing GPIO
-        GPIO.setwarnings(False)
-        GPIO.cleanup()  # clear any prior state
-        GPIO.setmode(GPIO.BCM)
-        
-        # Inputs from Arduino:
-        self.trial_pin = 25  # corresponds to Arduino - 7
-        self.iti_pin = 24    # corresponds to Arduino - 8
-        
-        GPIO.setup(self.trial_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-        GPIO.setup(self.iti_pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-        
-        # Edge detection with modest debounce
-        GPIO.add_event_detect(self.trial_pin, GPIO.BOTH, callback=self.trial_interrupt_handler, bouncetime=50)   # bouncetime expressed in milliseconds
-        GPIO.add_event_detect(self.iti_pin, GPIO.BOTH, callback=self.iti_interrupt_handler, bouncetime=50)
-       
-        #Initiate subprocesses to handle image acquisition
-        self.saver = MovieSaver(fname=self.fname,startSave=self.startSave,saving=self.saving,frame_buffer=self.frame_buffer,flushing=self.flushing,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
-        self.output = ImgOutput(frame_buffer=self.frame_buffer,finished=self.finished,current_frame=self.current_frame,triggerTime=self.triggerTime,saving=self.saving,kill_flag=self.kill_flag)
-        self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
+import sys
+import signal
+from arduinoRig import arduinoRig
 
     
-    def _wait_for_saver_complete(self, timeout=10):
-       deadline = time.time() + timeout
-       while time.time() < deadline:
-           if self.saver.saving_complete.value:
-               return True
-           time.sleep(0.005)
-       print("Warning: previous save not finished before starting new segment")
-       return False
+####Build the GUI####
+sg.theme("DarkAmber")#BluePurple also has a nice asthetic
 
-    def _clear_frame_buffer(self):
-       # Drain any leftover frames so new segment starts fresh
-       while True:
-           try:
-               self.frame_buffer.get_nowait()
-           except Empty:
-               break
+###Define the window layout
+camera_layout = [
+    ##Camera control and display panels
+    [sg.Image(filename="", key="-IMAGE-",size=(300,240))],
+    [sg.Button("Stream",size=(9,1)),sg.Button("End Stream",size=(9,1)),
+    sg.Button("Save Stream",size=(9,1)),sg.Button("End Recording",size=(9,1))],
+    #[sg.Button("End Program", size=(10, 1))]
+]
 
-    def trial_interrupt_handler(self, channel):
-        now = time.time()
-        if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
-            return
-        self._last_interrupt_time = now
-        
-        # Check the pin state to determine if it was a RISING or FALLING edge
-        if GPIO.input(self.trial_pin):  # Pin is HIGH -> RISING edge -> TRIAL START
-            if not self._wait_for_saver_complete():
-                print("Warning: starting trial before previous flush fully finished")
-            self._clear_frame_buffer()
-            
-            self.trialNum += 1
-            self.triggerTime.value = time.perf_counter()
-            self.fname.value = f"{self.fStub.value}cam_trial{self.trialNum}.data"
-            
-            self.startSave.value = True
-            self.startAcq.value = True
-            self.piStream.camera.annotate_text = f'Trial {self.trialNum}'
-            print('Trial start interrupt detected by picam')
-        
-        else:  # Pin is LOW -> FALLING edge -> TRIAL END
-            if self.saving.value:
-                self.saving.value = False
-                self.flushing.value = True
-                self.piStream.camera.annotate_text = 'Not recording'
-                print('Trial end interrupt detected by picam')
+trial_layout = [
+    ##Arduino, file name, and session controls
+    [sg.Button("Start Session",size=(14,1),button_color=('white','springgreen4')),
+     sg.Button("Stop Session",size=(14,1),button_color=('white','firebrick3'))],
+    [
+        sg.Text("Animal ID"),
+        sg.Input(size=(25,1),key="Animal"),
+        sg.Button('Set',bind_return_key=True)
+    ],
+    [
+        sg.Text("Session type"),
+        sg.Radio('DTSC',"RADIO",default=True,key="DTSC"),
+        sg.Radio('DEC',"RADIO",key="DEC")
+    ],
+    [sg.HSeparator()],
+    [sg.Column([
+        [sg.T("Number trials"),sg.Input(size=(10,1),key="numTrial",default_text="100")],
+        [sg.T("ITI low (ms)"),sg.Input(size=(10,1),key="ITIlow",default_text="5000")],
+        [sg.T("Percent CS"),sg.Input(size=(10,1),key="percentCS",default_text="10")],
+        [sg.T("CS duration (ms)"),sg.Input(size=(10,1),key="CSdur",default_text="250")],
+        [sg.T("Pre-CS duration (ms)"),sg.Input(size=(10,1),key="preCSdur",default_text="100")]
+    ]),
+    sg.Column([
+        [sg.T("Trial duration (ms)"),sg.Input(size=(10,1),key="trialDur",default_text="1000")],
+        [sg.T("ITI high (ms)"),sg.Input(size=(10,1),key="ITIhigh",default_text="20000")],
+        [sg.T("Percent US"),sg.Input(size=(10,1),key="percentUS",default_text="0")],
+        [sg.T("US duration (ms)"),sg.Input(size=(10,1),key="USdur",default_text="50")]
+    ],vertical_alignment='top')
+    ],
+    [sg.Button("Upload to Arduino"),sg.Button("Current Arduino settings")]
+]
 
-    def iti_interrupt_handler(self, channel):
-        now = time.time()
-        if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
-            return
-        self._last_interrupt_time = now
+exit_layout = [
+    [sg.Button("End Program",size=(30,2))]
+]
 
-        # Check the pin state to determine if it was a RISING or FALLING edge
-        if GPIO.input(self.iti_pin): # Pin is HIGH -> RISING edge -> ITI START
-            if not self._wait_for_saver_complete():
-                print("Warning: starting ITI before previous flush finished")
-            self._clear_frame_buffer()
-            
-            self.iti_counter += 1
-            self.triggerTime.value = time.perf_counter()
-            self.fname.value = f"{self.fStub.value}cam_ITI{self.iti_counter}.data"
-            
-            self.startSave.value = True
-            self.startAcq.value = True
-            self.piStream.camera.annotate_text = f'ITI {self.iti_counter}'
-            print('ITI start interrupt detected by picam')
+##full GUI layout
+layout = [
+    
+    [
+        [sg.Frame("Camera controls",camera_layout,title_location='n',element_justification='c'),
+        sg.Frame("Arduino session controls",trial_layout,title_location='n',element_justification='l')],
+        exit_layout
+    ]
+]
 
-        else: # Pin is LOW -> FALLING edge -> ITI END
-            if self.saving.value:
-                self.saving.value = False
-                self.flushing.value = True
-                self.piStream.camera.annotate_text = 'Not recording'
-                print('ITI end interrupt detected by picam')
-               
+####Create the window, arduinoRig, and piStream####
+window = sg.Window("Associative Learning control GUI", layout)
+rig = arduinoRig()
+vs = None
 
-    def reset_cam(self):
-        self.stream_flag.value = True
-        self.piStream.camera.annotate_background = picamera.Color('black')
-        self.piStream.camera.annotate_text_size = 6
-        self.piStream.camera.annotate_text = 'Not recording'
-       
-    def endStream(self):
-        self.stream_flag.value = False
-        if self.saving.value:
-            self.saving.value = False
-       
-    def read(self):
-        # return the frame most recently produced to GUI
-        if self.stream_flag.value and not self.current_frame.value==b'a':
-            return self.current_frame.value
-   
-    def guiStartRecording(self):
-        if not self.startSave.value:
-            self.startSave.value = True
-            self.startAcq.value = True
-            self.fname.value = time.strftime("%Y%m%d") +  '_'+ time.strftime("%H%M%S") + 'rig.data'
-            self.piStream.camera.annotate_text = ''
-            self.triggerTime.value = time.perf_counter()
+
+####Handling the GUI, rig, and piCamera####
+#Loop booleans and variables
+streaming = False#state of camera output
+frame = None#current frame for output to GUI video
+dispNow = True#to display current fame on GUI video
+lastpicTime = 0#timing when next frame should be output to GUI video
+
+#What to do if keyboard interrupt called
+def signal_handler(sig, frame):
+    if vs is not None:
+        vs.end()
+        print("vs.end()")
+    rig.end()
+    print("\nProgram ended")
+    sys.exit(0)
+signal.signal(signal.SIGINT,signal_handler)
+
+####GUI read loop
+while True:
+
+    #Get whatever input the user applied to GUI
+    event, values = window.read(timeout=0)
+    
+    #If the camera is on, check if we need to update GUI frame
+    if streaming:
+        now = time.perf_counter()
+        dispTime = now - lastpicTime
+        #Only update frame once every ~20 ms
+        if dispTime>0.05:
+            frame = vs.read()
+            lastpicTime = time.perf_counter()
+    
+    ##Button options, left panel
+    if event == "End Program" or event == sg.WIN_CLOSED:
+        break
+    elif event == "Stream":
+        #Only call camera first time stream activated
+        if not streaming:
+            if vs is None:
+                vs = pvid.piCamHandler()
+            else:
+                vs.reset_cam()
+            streaming = True
+            print("Start stream")
         else:
-            print('Already saving to file')
-       
-    def guiStopRecording(self):
-        if self.saving.value:
-            self.saving.value = False
-            self.flushing.value = True
-            self.piStream.camera.annotate_text = 'Not recording'
+            print("Camera already streaming!")
+    elif event == "End Stream":
+        if vs is not None:
+            vs.endStream()
+        streaming = False
+        frame = None
+        print("End Stream")
+    elif event == "Save Stream":
+        if streaming:
+            if not vs.saving.value:
+                vs.guiStartRecording()
+                print("Save Stream")
+            elif vs.saving.value:
+                print("Stream is already recording")
         else:
-            print('Stream is not currently saving')
-           
-    def passFstub(self,fStub):
-        #Get fname when session starts
-        self.fStub.value = fStub
-        self.trialNum = 0
-           
-    def end(self):
-        self.stream_flag.value = False
-        self.kill_flag.value = True
-        #print('got kill_flag')
-        #Allow stream and saver to finish jobs
-        while (not self.piStream.thread_complete.value) or (not self.saver.saving_complete.value):
-            time.sleep(0.5)
-            print('Waiting for camera threads to end')
+            print("No stream open")
+    elif event == "End Recording":
+        if streaming and vs.saving.value:
+            vs.guiStopRecording()
+            print("End Recording")
+        else:
+            print("Not recording")
+    
+    ##Button options right panel
+    elif event == "Start Session":
+        rig.startSession()
+        while not rig.fnameReady:
             pass
-        #Release resources
-        self.piStream.camera.close()
-        GPIO.cleanup()
+        fStub = rig.getFstub()
+        if vs is not None:
+            vs.passFstub(fStub)
+    elif event == "Stop Session":
+        rig.stopSession()
+    elif event == "Set":
+        rig.animalID = values['Animal']
+        print("Set animalID: ",values['Animal'])
+    elif event == "Upload to Arduino":
+        if values['DTSC']:
+            rig.settrial('isDTSC',1)
+        else:
+            rig.settrial('isDTSC',0)
+        for item in values.items():
+            if item[0] not in ['Animal','DTSC','DEC']:
+                rig.settrial(item[0],item[1])
+                time.sleep(0.001)
+    elif event == "Current Arduino settings":
+        rig.GetArduinoState()
     
-    def stop_recording(self, channel):
-        now = time.time()
-        if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
-            return
-        self._last_interrupt_time = now
-        if self.saving.value:
-            self.saving.value = False
-            self.flushing.value = True
-            self.piStream.camera.annotate_text = 'Not recording'
-            print(f'Recording stopped by pin {channel}. Flushing buffer.')
+    ##Process and display the current frame capture in GUI if streaming
+    if streaming and frame is not None:
+        if len(frame)>0:
+            #imgbytes = frame
+            data = cv2.resize(cv2.imdecode(np.frombuffer(frame, dtype=np.uint8), cv2.IMREAD_GRAYSCALE),(300,240))
+            imgbytes = cv2.imencode('.png',data)[1].tobytes()
+            window["-IMAGE-"].update(data=imgbytes)
+        frame = None
     
-    def start_trial_recording(self, channel):
-        now = time.time()
-        if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
-            return
-        self._last_interrupt_time = now
-        
-        if not self._wait_for_saver_complete():
-            print("Warning: starting trial before previous save finished.")
-        self._clear_frame_buffer()
-        self.trialNum += 1
-        self.triggerTime.value = time.perf_counter()
-        self.fname.value = f"{self.fStub.value}cam_trial{self.trialNum}.data"
-        self.startSave.value = True
-        self.startAcq.value = True
-        self.piStream.camera.annotate_text = f'Trial {self.trialNum}'
-        print('Trial start interrupt detected.')
     
-    def start_iti_recording(self, channel):
-        now = time.time()
-        if now - self._last_interrupt_time < self.DEBOUNCE_SEC:
-            return
-        self._last_interrupt_time = now
-        if not self._wait_for_saver_complete():
-            print("Warning: starting ITI before previous save finished.")
-        self._clear_frame_buffer()
-        self.iti_counter += 1
-        self.triggerTime.value = time.perf_counter()
-        self.fname.value = f"{self.fStub.value}cam_ITI{self.iti_counter}.data"
-        self.startSave.value = True
-        self.startAcq.value = True
-        self.piStream.camera.annotate_text = f'ITI {self.iti_counter}'
-        print('ITI start interrupt detected.')
+    
+##Do this when the program is ended
+window.close()
+if vs is not None:
+    vs.end()
+    print("vs.end()")
+rig.end()
+print("rig.end()")
+print('Program ended')
