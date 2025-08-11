@@ -351,12 +351,12 @@ void stopTrial(unsigned long now) {
   if (now > trial.ITIstartMillis + 500) {
 	  digitalWrite(trial.itiPin, HIGH);
 	  trial.itiPinOnOff = true;
-	  serialOut(now,"Deferred ITI Start",trial.currentTrial);
+	  
   }
   if (now < trial.ITIstartMillis + trial.ITI + 500) {
   		digitalWrite(trial.itiPin, LOW);
   	    trial.itiPinOnOff = false;
-	    serialOut(now,"Preponed ITI End",trial.currentTrial);
+	    
   }
 	  
 	  
