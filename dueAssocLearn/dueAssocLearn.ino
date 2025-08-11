@@ -301,7 +301,7 @@ void startSession(unsigned long now) {
 
 //Start trial
 void startTrial(unsigned long now){
-  if (trial.trialIsRunning==false){
+  if (!trial.trialIsRunning){
     trial.currentTrial += 1;
 	
 	
@@ -310,7 +310,9 @@ void startTrial(unsigned long now){
     digitalWrite(trial.trialPin,HIGH);
     serialOut(now,"startTrial",trial.currentTrial);
     
-    //Reset the 2P
+	trial.trialIsRunning = true;
+	  
+	//Reset the 2P
     twoP.changeFile = true;
 
     //Calculate trial type
