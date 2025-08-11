@@ -336,20 +336,18 @@ void stopTrial(unsigned long now) {
   digitalWrite(trial.trialPin, LOW);
   serialOut(now, "stopTrial", trial.currentTrial);
 
-  // start a new 2P file for the ITI
+  // new-file pulse, once
   digitalWrite(twoP.fileChangePin, HIGH);
   serialOut(now, "newFile", trial.currentTrial);
   delay(twoP.fileChangeInt);
   digitalWrite(twoP.fileChangePin, LOW);
 
-  // schedule ITI timing (but DO NOT toggle the ITI pin here)
+  // set up ITI timing only; DO NOT touch itiPin or print here
   trial.ITI = random(trial.ITIlow, trial.ITIhigh);
-  trial.ITIstartMillis = now;            // ITI "start time" stamp
-  trial.ITIstillStartMillis = now;       // your existing still-motion timer
-  trial.itiPinOnOff = false;             // we’re not in the ITI-high window yet
-
-  // (no digitalWrite to trial.itiPin here)
-}
+  trial.ITIstartMillis     = now;   // ITI starts timing now
+  trial.ITIstillStartMillis= now;   // stillness timer resets now
+  trial.itiPinOnOff        = false; // we are LOW at the beginning of ITI
+  digitalWrite(trial.itiPin, LOW);  // ensure LOW once
 
 
 //End Session
@@ -685,27 +683,31 @@ void update2P(unsigned long now){
 
 
 /*Loop*/
-void loop()
-{
-  
-  //Counting for each session/trial/ITI
+void loop() {
   unsigned long now = millis();
 
-  // --- ITI pin timing: raise 500 ms after ITI starts; lower at ITI end ---
+  // ---- ITI pin edges handled here, once per edge ----
   if (!trial.trialIsRunning && trial.sessionIsRunning) {
-	// raise HIGH after 500 ms into ITI
-	if (!trial.itiPinOnOff && (now - trial.ITIstartMillis) >= 500UL) {
-	  digitalWrite(trial.itiPin, HIGH);
-	  trial.itiPinOnOff = true;
-	  serialOut(now, "startITI", trial.currentTrial);
-	}
-	// lower LOW at (500 ms + ITI duration)
-	if (trial.itiPinOnOff && (now - trial.ITIstartMillis) >= (500UL + trial.ITI)) {
-	  digitalWrite(trial.itiPin, LOW);
-	  trial.itiPinOnOff = false;
-	  serialOut(now, "endITI", trial.currentTrial);
-	}
-  } 
+    // raise ITI ~500 ms after ITI started (delay)
+    if (!trial.itiPinOnOff && (now - trial.ITIstartMillis >= 500)) {
+      digitalWrite(trial.itiPin, HIGH);
+      trial.itiPinOnOff = true;
+      serialOut(now, "startITI", trial.currentTrial);   // print ONCE
+    }
+
+    // lower ITI a bit BEFORE ITI finishes (prepone by 500 ms)
+    if (trial.itiPinOnOff) {
+      unsigned long dropAt =
+        (trial.ITI > 500) ? (trial.ITIstartMillis + trial.ITI - 500)
+                          :  trial.ITIstartMillis; // don’t underflow
+
+      if (now >= dropAt) {
+        digitalWrite(trial.itiPin, LOW);
+        trial.itiPinOnOff = false;
+        serialOut(now, "endITI", trial.currentTrial);   // print ONCE
+      }
+    }
+  }
   trial.msIntoSession = now-trial.sessionStartMillis;
   trial.msIntoTrial = now-trial.trialStartMillis;
   trial.msIntoITI = now - trial.ITIstartMillis;
