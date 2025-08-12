@@ -677,14 +677,22 @@ void loop()
   updateLED(now);
   updateUS(now);
 	update2P(now);
-  
+
+  static bool inGap = false;
+  static unsigned long gapStart = 0;
+	
   // Stop when the *whole window* (trial + ITI) is done
   if (trial.trialIsRunning && trial.sessionIsRunning && now >= now + trial.trialDur + trial.ITI) {
 	digitalWrite(trial.trialPin, LOW);                 // falling edge at end of ITI
 	serialOut(now, "endCycle", trial.currentTrial);
 
-	trial.trialIsRunning = false;  
-	  
+	trial.trialIsRunning = false;
+	inGap = true;
+  	gapStart = now;       
+  }  
+
+  if (trial.sessionIsRunning && inGap && (now - gapStart >= 100)) {
+    inGap = false;
 	if (trial.currentTrial >= trial.numTrial - 1) {
 	  stopSession(now);                                // final cycle done
 	} else {
