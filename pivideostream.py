@@ -222,22 +222,39 @@ class piCamHandler():
         self.output = ImgOutput(frame_buffer=self.frame_buffer,finished=self.finished,current_frame=self.current_frame,triggerTime=self.triggerTime,saving=self.saving,kill_flag=self.kill_flag)
         self.piStream = PiVideoStream(output=self.output,resolution=self.resolution,framerate=self.framerate,frame_buffer=self.frame_buffer,finished=self.finished,stream_flag=self.stream_flag,saving=self.saving,startAcq=self.startAcq,triggerTime=self.triggerTime,piStreamDone=self.piStreamDone,kill_flag=self.kill_flag)
         
-    def interrupt_in(self,channel):
-        if GPIO.input(self.on_pin):
+    def _end_current_segment(self, timeout=1.0):
+        if self.saving.value:
+            self.saving.value = False
+            self.flushing.value = True
+            t0 = time.time()
+            # wait briefly for the saver to finish
+            while time.time() - t0 < timeout:
+                if self.saver.saving_complete.value:
+                    return True
+                time.sleep(0.005)
+            print("Warning: previous save not finished before starting new segment")
+        return False
+    
+    def interrupt_in(self, channel):
+        if GPIO.input(self.on_pin):  # RISING: start of new trial
+            # End previous segment (which includes the ITI we just recorded)
+            self._end_current_segment(timeout=1.0)
+    
+            # Start a fresh file for this trial+next ITI
             self.triggerTime.value = time.perf_counter()
-            self.trialNum = self.trialNum + 1
-            trial_str = str(self.trialNum)
-            newFname = self.fStub.value+'cam_trial'+trial_str+'.data'
+            self.trialNum += 1
+            newFname = f"{self.fStub.value}cam_trial{self.trialNum}.data"
             self.fname.value = newFname
             self.startSave.value = True
             self.startAcq.value = True
-            self.piStream.camera.annotate_text = ''
+            self.piStream.camera.annotate_text = ''  # recording
             print('Trial start interrupt detected by picam')
-        elif not GPIO.input(self.on_pin):
-            self.saving.value = False
-            self.flushing.value = True
-            self.piStream.camera.annotate_text = 'Not recording'
-            print('Trial end interrupt detected by picam')
+    
+        else:  # FALLING: end of trial / start of ITI
+            # DO NOT stop here; keep saving through ITI
+            # (optional) annotate so you can see ITI in overlay
+            self.piStream.camera.annotate_text = 'ITI'
+            print('Trial end interrupt detected by picam (continuing to record ITI)')
     
     def reset_cam(self):
         self.stream_flag.value = True
