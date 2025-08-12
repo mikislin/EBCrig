@@ -286,7 +286,7 @@ void startSession(unsigned long now) {
 
 //Start trial
 void startTrial(unsigned long now){
-  if (trial.trialIsRunning==false){
+  if (!trial.trialIsRunning){
     trial.currentTrial += 1;
 
     trial.trialStartMillis = now;
@@ -329,7 +329,9 @@ void stopTrial(unsigned long now) {
   trial.ITI = random(trial.ITIlow,trial.ITIhigh);
   trial.ITIstartMillis = now;
   trial.ITIstillStartMillis = now;
-	
+
+  delay(100);            // 100 ms gap with pin LOW
+  startTrial(millis());  // next trial: pin 7 goes HIGH again
   
 }
 
@@ -669,10 +671,6 @@ void loop()
 	trial.inCS = (trial.msIntoTrial > trial.preCSdur) && (trial.msIntoTrial < trial.preCSdur + trial.CSdur);
   trial.inUS = (trial.msIntoTrial > trial.preCSdur + trial.CS_USinterval) && (trial.msIntoTrial < (trial.preCSdur + trial.CS_USinterval + trial.USdur));
 
-  //Start a trial at the end of the ITI period
-  if (!trial.trialIsRunning && trial.sessionIsRunning  && (trial.msIntoITI>trial.ITItimeout || (trial.msIntoStillITI>trial.ITI))){
-    startTrial(now);
-  }
 
   //Updating all hardware components
   updateEncoder(now);
@@ -681,9 +679,13 @@ void loop()
 	update2P(now);
   
   // Stop when the *whole window* (trial + ITI) is done
-  if (trial.trialIsRunning && trial.sessionIsRunning &&
-      (millis() - trial.trialStartMillis) >= (trial.trialDur + trial.ITI)) {
-    stopTrial(millis());
+  if (trial.trialIsRunning && trial.sessionIsRunning) {
+  	unsigned long elapsed = now - trial.trialStartMillis;
+
+  	// STOP when trial + ITI are both done
+  	if (elapsed >= (trial.trialDur + trial.ITI)) {
+    	stopTrial(now);
+  	}
   }
     //we set ITI inside stopTrial function
   }
