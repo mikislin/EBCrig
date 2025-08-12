@@ -1,3 +1,5 @@
+
+
 /*
  * Author: Joey Broussard
  * PNI, 20200820
@@ -667,25 +669,10 @@ void loop()
 	trial.inCS = (trial.msIntoTrial > trial.preCSdur) && (trial.msIntoTrial < trial.preCSdur + trial.CSdur);
   trial.inUS = (trial.msIntoTrial > trial.preCSdur + trial.CS_USinterval) && (trial.msIntoTrial < (trial.preCSdur + trial.CS_USinterval + trial.USdur));
 
-  // End of ITI -> now we finally drop pin 7 LOW, log stop, gap 100 ms, then next trial
-  if (!trial.trialIsRunning && trial.sessionIsRunning &&
-      (trial.msIntoITI>trial.ITItimeout || (trial.msIntoStillITI>trial.ITI))) {
-
-	  // 1) end the combined TRIAL+ITI block
-	 digitalWrite(trial.trialPin, LOW);
-	 serialOut(now, "stopTrial", trial.currentTrial);
-	
-	 // 2) if that was the last trial, finish the session and don't rise again
-	 if (trial.currentTrial == trial.numTrial - 1) {
-	   stopSession(now);
-	 } else {
-	   // 3) 100 ms low gap
-	   delay(100);
-	
-	   // 4) start the next trial (this sets pin 7 HIGH again)
-	   startTrial(millis());
-	 }
-   }
+  //Start a trial at the end of the ITI period
+  if (!trial.trialIsRunning && trial.sessionIsRunning  && (trial.msIntoITI>trial.ITItimeout || (trial.msIntoStillITI>trial.ITI))){
+    startTrial(now);
+  }
 
   //Updating all hardware components
   updateEncoder(now);
@@ -693,19 +680,14 @@ void loop()
   updateUS(now);
 	update2P(now);
   
-  //Stop at end of trialDur if trialIsRunning
-  if (now > (trial.trialStartMillis + trial.trialDur) &&
-  	  trial.trialIsRunning && trial.sessionIsRunning) {
-
-    trial.trialIsRunning      = false;      // we're in ITI now
-    trial.ITI                 = random(trial.ITIlow, trial.ITIhigh);
-    trial.ITIstartMillis      = now;        // ITI timing starts
-    trial.ITIstillStartMillis = now;        // stillness timer resets
-
-    // Note: DO NOT drive trialPin LOW here.
-    // Note: DO NOT call stopTrial() here.
+  // Stop when the *whole window* (trial + ITI) is done
+  if (trial.trialIsRunning && trial.sessionIsRunning &&
+      (millis() - trial.trialStartMillis) >= (trial.trialDur + trial.ITI)) {
+    stopTrial(millis());
   }
-	
+    //we set ITI inside stopTrial function
+  }
+  
   if (Serial.available() > 0) {
     char startMarker = '<';
     char endMarker = '>';
