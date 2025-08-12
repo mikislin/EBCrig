@@ -683,6 +683,8 @@ void loop()
 	digitalWrite(trial.trialPin, LOW);                 // falling edge at end of ITI
 	serialOut(now, "endCycle", trial.currentTrial);
 
+	trial.trialIsRunning = false;  
+	  
 	if (trial.currentTrial >= trial.numTrial - 1) {
 	  stopSession(now);                                // final cycle done
 	} else {
