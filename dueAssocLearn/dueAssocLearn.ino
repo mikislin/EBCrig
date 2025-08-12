@@ -679,13 +679,15 @@ void loop()
 	update2P(now);
   
   // Stop when the *whole window* (trial + ITI) is done
-  if (trial.trialIsRunning && trial.sessionIsRunning) {
-  	unsigned long elapsed = now - trial.trialStartMillis;
+  if (trial.trialIsRunning && trial.sessionIsRunning && now >= now + trial.trialDur + trial.ITI) {
+	digitalWrite(trial.trialPin, LOW);                 // falling edge at end of ITI
+	serialOut(now, "endCycle", trial.currentTrial);
 
-  	// STOP when trial + ITI are both done
-  	if (elapsed >= (trial.trialDur + trial.ITI)) {
-    	stopTrial(now);
-  	}
+	if (trial.currentTrial >= trial.numTrial - 1) {
+	  stopSession(now);                                // final cycle done
+	} else {
+	  startTrial(now);                                 // immediately start next cycle (pin goes HIGH inside startTrial)
+	}
   }
 
   
