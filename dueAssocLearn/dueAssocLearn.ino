@@ -687,8 +687,7 @@ void loop()
     	stopTrial(now);
   	}
   }
-    //we set ITI inside stopTrial function
-  }
+
   
   if (Serial.available() > 0) {
     char startMarker = '<';
