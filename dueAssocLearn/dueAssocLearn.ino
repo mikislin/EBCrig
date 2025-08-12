@@ -678,29 +678,13 @@ void loop()
   updateUS(now);
 	update2P(now);
 
-  static bool inGap = false;
-  static unsigned long gapStart = 0;
-	
+
   // Stop when the *whole window* (trial + ITI) is done
   if (trial.trialIsRunning && trial.sessionIsRunning && now >= now + trial.trialDur + trial.ITI) {
 	digitalWrite(trial.trialPin, LOW);                 // falling edge at end of ITI
-	serialOut(now, "endCycle", trial.currentTrial);
-
-	trial.trialIsRunning = false;
-	inGap = true;
-  	gapStart = now;       
+	serialOut(now, "endCycle", trial.currentTrial);    
   }  
 
-  if (trial.sessionIsRunning && inGap && (now - gapStart >= 100)) {
-    inGap = false;
-	if (trial.currentTrial >= trial.numTrial - 1) {
-	  stopSession(now);                                // final cycle done
-	} else {
-	  startTrial(now);                                 // immediately start next cycle (pin goes HIGH inside startTrial)
-	}
-  }
-
-  
   if (Serial.available() > 0) {
     char startMarker = '<';
     char endMarker = '>';
