@@ -1,5 +1,3 @@
-
-
 # Control of the camera
 import picamera
 from picamera import PiCamera
