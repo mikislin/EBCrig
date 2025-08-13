@@ -702,6 +702,7 @@ void loop()
   //Stop at end of trialDur if trialIsRunning
   if (now > (trial.trialStartMillis + trial.trialDur) &&
   	  trial.trialIsRunning && trial.sessionIsRunning) {
+	
 	if (trial.currentTrial == trial.numTrial - 1) {
       // ---- LAST TRIAL: NO ITI ----
       digitalWrite(trial.trialPin, LOW);                 // falling edge now
@@ -715,8 +716,8 @@ void loop()
 
 	  // announce ITI start once (no pin change here)
       serialOut(now, "startITI", trial.currentTrial);
-	 }
-   }
+	}
+  }
 
   
 	
