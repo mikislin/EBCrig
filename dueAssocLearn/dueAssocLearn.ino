@@ -187,7 +187,7 @@ void setup()
   trial.ITIstartMillis = 0;//ms
   trial.percentUS = 0;//percent US only trials
   trial.percentCS = 10;//percent CS only trials
-  trial.itiCount = 0;
+  trial.ITICount = 0;
 
   trial.trialPin = 7;//pin for conveying trial state
   trial.pinOnOff = false;//trial didn't just end
@@ -665,9 +665,9 @@ void loop()
 	trial.msIntoITI = now - trial.ITIstartMillis;
 	trial.msIntoStillITI = now - trial.ITIstillStartMillis;
   
-  trial.itiCount++;
+  trial.ITICount++;
   serialOut(now, "startITI", trial.currentTrial);   // which trial just entered ITI
-  serialOut(now, "ITIcount", trial.itiCount);       // running count of ITIs this session
+  serialOut(now, "ITIcount", trial.ITICount);       // running count of ITIs this session
   
   //Booleans for state controller
 	trial.inCRcount = (trial.msIntoTrial > (trial.preCSdur + trial.CS_USinterval - trial.CRcountDur)) && (trial.msIntoTrial < (trial.preCSdur + trial.CS_USinterval));//interval to deterimine if animal makes CR
