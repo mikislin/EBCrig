@@ -36,7 +36,6 @@ struct trial
   unsigned long ITIhigh; //ms highest inter-trial interval
   unsigned long ITI; //ms random draw from low to high value
   unsigned long ITItimeout = 30000; //ms - 30 s time to wait if animal not still
-  unsigned long ITICount;   // how many ITIs have started this session
   unsigned long ITIstartMillis;//ms time at which interTrialInterval starts
 	unsigned long msIntoITI;//ms since ITI began
 	unsigned long ITIstillStartMillis; // time at which animal became still
@@ -187,7 +186,7 @@ void setup()
   trial.ITIstartMillis = 0;//ms
   trial.percentUS = 0;//percent US only trials
   trial.percentCS = 10;//percent CS only trials
-  trial.ITICount = 0;
+  
 
   trial.trialPin = 7;//pin for conveying trial state
   trial.pinOnOff = false;//trial didn't just end
@@ -328,6 +327,8 @@ void stopTrial(unsigned long now) {
   
   //Set time to wait until next trial starts
   trial.ITI = random(trial.ITIlow,trial.ITIhigh);
+	serialOut(now, "startITI", trial.currentTrial);
+	serialOut(now, "ITIDuration", trial.ITI);
   trial.ITIstartMillis = now;
   trial.ITIstillStartMillis = now;
 	
@@ -665,9 +666,7 @@ void loop()
 	trial.msIntoITI = now - trial.ITIstartMillis;
 	trial.msIntoStillITI = now - trial.ITIstillStartMillis;
   
-  trial.ITICount++;
-  serialOut(now, "startITI", trial.currentTrial);   // which trial just entered ITI
-  serialOut(now, "ITIcount", trial.ITICount);       // running count of ITIs this session
+
   
   //Booleans for state controller
 	trial.inCRcount = (trial.msIntoTrial > (trial.preCSdur + trial.CS_USinterval - trial.CRcountDur)) && (trial.msIntoTrial < (trial.preCSdur + trial.CS_USinterval));//interval to deterimine if animal makes CR
