@@ -327,8 +327,6 @@ void stopTrial(unsigned long now) {
   
   //Set time to wait until next trial starts
   trial.ITI = random(trial.ITIlow,trial.ITIhigh);
-	serialOut(now, "startITI", trial.currentTrial);
-	serialOut(now, "ITIDuration", trial.ITI);
   trial.ITIstartMillis = now;
   trial.ITIstillStartMillis = now;
 	
@@ -716,6 +714,7 @@ void loop()
 
 	  // announce ITI start once (no pin change here)
       serialOut(now, "startITI", trial.currentTrial);
+	  serialOut(now, "ITIDuration", trial.ITI);
 	}
   }
 
