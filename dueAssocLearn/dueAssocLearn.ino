@@ -700,7 +700,6 @@ void loop()
 	if (trial.currentTrial == trial.numTrial - 1) {
       // ---- LAST TRIAL: NO ITI ----
       digitalWrite(trial.trialPin, LOW);                 // falling edge now
-      serialOut(now, "stopTrial", trial.currentTrial);   // log once
       stopSession(now);                                  // end session
     } else {
 	  trial.trialIsRunning      = false;      // we're in ITI now
