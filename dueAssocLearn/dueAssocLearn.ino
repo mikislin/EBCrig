@@ -717,9 +717,8 @@ void loop()
       serialOut(now, "startITI", trial.currentTrial);
 	 }
    }
-    // Note: DO NOT drive trialPin LOW here.
-    // Note: DO NOT call stopTrial() here.
-  }
+
+  
 	
   if (Serial.available() > 0) {
     char startMarker = '<';
