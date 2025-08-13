@@ -702,12 +702,21 @@ void loop()
   //Stop at end of trialDur if trialIsRunning
   if (now > (trial.trialStartMillis + trial.trialDur) &&
   	  trial.trialIsRunning && trial.sessionIsRunning) {
+	if (trial.currentTrial == trial.numTrial - 1) {
+      // ---- LAST TRIAL: NO ITI ----
+      digitalWrite(trial.trialPin, LOW);                 // falling edge now
+      serialOut(now, "stopTrial", trial.currentTrial);   // log once
+      stopSession(now);                                  // end session
+    } else {
+	  trial.trialIsRunning      = false;      // we're in ITI now
+	  trial.ITI                 = random(trial.ITIlow, trial.ITIhigh);
+      trial.ITIstartMillis      = now;        // ITI timing starts
+	  trial.ITIstillStartMillis = now;        // stillness timer resets
 
-    trial.trialIsRunning      = false;      // we're in ITI now
-    trial.ITI                 = random(trial.ITIlow, trial.ITIhigh);
-    trial.ITIstartMillis      = now;        // ITI timing starts
-    trial.ITIstillStartMillis = now;        // stillness timer resets
-
+	  // announce ITI start once (no pin change here)
+      serialOut(now, "startITI", trial.currentTrial);
+	 }
+   }
     // Note: DO NOT drive trialPin LOW here.
     // Note: DO NOT call stopTrial() here.
   }
