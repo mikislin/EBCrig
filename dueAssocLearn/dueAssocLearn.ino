@@ -324,11 +324,7 @@ void stopTrial(unsigned long now) {
 
   //Reset the 2P
   twoP.changeFile = true;
-  
-  //Set time to wait until next trial starts
-  trial.ITI = random(trial.ITIlow,trial.ITIhigh);
-  trial.ITIstartMillis = now;
-  trial.ITIstillStartMillis = now;
+
 	
   
 }
