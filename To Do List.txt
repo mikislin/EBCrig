@@ -1,3 +1,3 @@
 TO DO LIST: 
 1. 2 frame (20 ms) of footage 'Not Recording' at beginning of each trial
-
+2. Reset the Counter of Trial during each session using same GUI Interface (Install this feature)
