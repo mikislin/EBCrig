@@ -113,7 +113,7 @@ class MovieSaver(mp.Process):
             
 
 class PiVideoStream(mp.Process):
-    def __init__(self,output=None,resolution=(160, 128),framerate=100,frame_buffer=None,finished=None,stream_flag=None,saving=None,sync_flag=None,startAcq=None,triggerTime=None,piStreamDone=None,kill_flag=None,**kwargs):
+    def __init__(self,output=None,resolution=(640, 480),framerate=100,frame_buffer=None,finished=None,stream_flag=None,saving=None,sync_flag=None,startAcq=None,triggerTime=None,piStreamDone=None,kill_flag=None,**kwargs):
         #Note output could be an instantiation of ImgOutput or any file-type object
         #with a write method that returns each frame capture as the write
         super(PiVideoStream,self).__init__()
@@ -184,7 +184,7 @@ class PiVideoStream(mp.Process):
         
         
 class piCamHandler():
-    def __init__(self,resolution=(160,128),framerate=100): #,sync_flag=None
+    def __init__(self,resolution=(640,480),framerate=100): #,sync_flag=None
         #Params for picamera
         self.resolution = resolution
         self.framerate = framerate
