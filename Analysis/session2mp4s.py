@@ -126,7 +126,7 @@ for file,name in zip(im_files,names):
         fps=fps,
         codec='libx265',
         macro_block_size=1,
-        ffmpeg_params=['-x265-params', 'lossless=1', '-preset', 'veryslow']
+        ffmpeg_params=['-x265-params', 'lossless=1', '-preset', 'veryslow', 'scale=640:480']
     )
     try:
         for fr in imArray:          # write ALL frames as grayscale
