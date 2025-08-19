@@ -129,7 +129,17 @@ for file,name in zip(im_files,names):
         ffmpeg_params=['-x265-params', 'lossless=1', '-preset', 'veryslow', 'scale=640:480']
     )
     try:
-        for fr in imArray:          # write ALL frames as grayscale
-            writer.append_data(fr)  # 2D uint8; ffmpeg converts to YUV internally
+        # Force output resolution (edit here if you change size later)
+        OUT_W, OUT_H = 640, 480  # must be ints; both even already
+    
+        in_h, in_w = imArray.shape[1], imArray.shape[2]
+        print(f"[{name}] frames={len(imArray)} fps≈{fps:.3f}  in={in_w}x{in_h} -> out={OUT_W}x{OUT_H}")
+    
+        for fr in imArray:
+            if (in_w, in_h) != (OUT_W, OUT_H):
+                # cv2.resize expects (width, height)
+                fr = cv2.resize(fr, (OUT_W, OUT_H), interpolation=cv2.INTER_CUBIC)
+            writer.append_data(fr)  # 2D uint8 grayscale
+                writer.append_data(fr)  # 2D uint8; ffmpeg converts to YUV internally
     finally:
         writer.close()
