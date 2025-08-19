@@ -92,6 +92,11 @@ for file,name in zip(im_files,names):
     #parse bytes to np array
     imArray,time = mjpg2array(file)
     
+    dt = np.diff(time)
+    dt = dt[(dt > 0) & (dt < np.percentile(dt, 99.5))]
+    fps = 1000.0 / np.median(dt) if dt.size else 30.0
+    print(f"[{name}] frames={len(imArray)}  fps≈{fps:.3f}  res={imArray.shape[2]}x{imArray.shape[1]}")
+    
     # Apply CS/US stamps WITHOUT trimming any frames (all files have trials + ITIs)
     csTime = float(headers['preCSdur'])        # ms
     csusInt = float(headers['CS_USinterval'])  # ms
