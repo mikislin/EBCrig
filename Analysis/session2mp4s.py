@@ -95,7 +95,6 @@ for file,name in zip(im_files,names):
     dt = np.diff(time)
     dt = dt[(dt > 0) & (dt < np.percentile(dt, 99.5))]
     fps = 1000.0 / np.median(dt) if dt.size else 30.0
-    print(f"[{name}] frames={len(imArray)}  fps≈{fps:.3f}  res={640}x{480}")
     
     # Apply CS/US stamps WITHOUT trimming any frames (all files have trials + ITIs)
     csTime = float(headers['preCSdur'])        # ms
@@ -126,7 +125,7 @@ for file,name in zip(im_files,names):
         fps=fps,
         codec='libx265',
         macro_block_size=1,
-        ffmpeg_params=['-x265-params', 'lossless=1', '-preset', 'veryslow', 'scale=640:480']
+        ffmpeg_params=['-x265-params', 'lossless=1', '-preset', 'veryslow',]
     )
     try:
         # Force output resolution (edit here if you change size later)
