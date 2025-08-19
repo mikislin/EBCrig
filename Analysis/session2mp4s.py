@@ -125,7 +125,7 @@ for file,name in zip(im_files,names):
         fps=fps,
         codec='libx265',
         macro_block_size=1,
-        ffmpeg_params=['-x265-params', 'lossless=1', '-preset', 'veryslow']
+        ffmpeg_params=['-x265-params', 'lossless=1', '-preset', 'ultrafast']
     )
     try:
         # Force output resolution (edit here if you change size later)
