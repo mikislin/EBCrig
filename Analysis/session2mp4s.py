@@ -92,29 +92,23 @@ for file,name in zip(im_files,names):
     #parse bytes to np array
     imArray,time = mjpg2array(file)
     
-    # only apply CS/US stamps for non-ITI files
-    if 'ITI' not in name:
-        #Make a subarray corresponding to highlighted trace period
-        csTime = float(headers['preCSdur'])  # millis at CS start
-        csusInt = float(headers['CS_USinterval'])  # CS alone length
-        usDur = float(headers['USdur'])  # US duration
-        pad = [300,300]
-        timeEnds = [-pad[0]+csTime, pad[1]+csTime+csusInt]
-        goodFrames = (time>timeEnds[0]) & (time<timeEnds[1])
-        #Stamps for CS and US
-        csStamp = np.zeros(np.shape(imArray[0]),dtype=np.uint8)
-        csStamp[0:10,0:10] = 255
-        usStamp = np.ones(np.shape(imArray[0]),dtype=np.uint8)
-        usStamp[0:10,0:10] = 0
-        csEnds = [csTime, csTime+csusInt+usDur]
-        usEnds = [csTime+csusInt, csTime+csusInt+usDur]
-        for a in np.where((time>=csEnds[0]) & (time<=csEnds[1])):
-            imArray[a] = imArray[a]*usStamp + csStamp
-        for b in np.where((time>=usEnds[0]) & (time<=usEnds[1])):
-            imArray[b] = imArray[b]*usStamp
-    else:
-        # For ITI files, include all frames without stamping
-        goodFrames = np.arange(len(time))
+    # Apply CS/US stamps WITHOUT trimming any frames (all files have trials + ITIs)
+    csTime = float(headers['preCSdur'])        # ms
+    csusInt = float(headers['CS_USinterval'])  # ms
+    usDur = float(headers['USdur'])            # ms
+
+    cs_start = csTime
+    cs_end   = csTime + csusInt + usDur
+    us_start = csTime + csusInt
+    us_end   = us_start + usDur
+
+    # boolean masks over the time vector (ms)
+    cs_mask = (time >= cs_start) & (time <= cs_end)
+    us_mask = (time >= us_start) & (time <= us_end)
+    
+    # vectorized stamps: white for CS, black for US (US overrides in overlap)
+    imArray[cs_mask, 0:10, 0:10] = 255  # white CS square
+    imArray[us_mask, 0:10, 0:10] = 0    # black US square
     
     #write to mp4
     imSubArray = imArray[goodFrames]
