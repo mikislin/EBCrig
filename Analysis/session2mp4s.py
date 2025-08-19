@@ -121,15 +121,15 @@ for file,name in zip(im_files,names):
     im_fileOut = os.path.join(out_dir, name + '.mp4')
     
     writer = imageio.get_writer(
-        im_fileOut,
+        im_fileOut,                 # keep '.mp4' (or use '.mkv' if you prefer)
         format='FFMPEG',
-        fps=fps,                       # use the fps you computed from timestamps
-        codec='libx264rgb',
+        fps=fps,
+        codec='libx265',
         macro_block_size=1,
-        ffmpeg_params=['-crf', '0', '-qp', '0', '-preset', 'veryslow']
+        ffmpeg_params=['-x265-params', 'lossless=1', '-preset', 'veryslow']
     )
     try:
-        for fr in imArray:  # write ALL frames (no cropping)
-            writer.append_data(np.repeat(fr[..., None], 3, axis=2))  # gray -> RGB
+        for fr in imArray:          # write ALL frames as grayscale
+            writer.append_data(fr)  # 2D uint8; ffmpeg converts to YUV internally
     finally:
         writer.close()
