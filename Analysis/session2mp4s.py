@@ -126,7 +126,7 @@ for file,name in zip(im_files,names):
         fps=fps,                       # use the fps you computed from timestamps
         codec='libx264rgb',
         macro_block_size=1,
-        ffmpeg_params=['-crf', '0', '-qp', '0', '-preset', 'veryslow', '-pix_fmt', 'rgb24']
+        ffmpeg_params=['-crf', '0', '-qp', '0', '-preset', 'veryslow']
     )
     try:
         for fr in imArray:  # write ALL frames (no cropping)
