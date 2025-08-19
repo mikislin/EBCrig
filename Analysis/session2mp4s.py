@@ -109,10 +109,22 @@ for file,name in zip(im_files,names):
     # vectorized stamps: white for CS, black for US (US overrides in overlap)
     imArray[cs_mask, 0:10, 0:10] = 255  # white CS square
     imArray[us_mask, 0:10, 0:10] = 0    # black US square
-    
+
     #write to mp4
-    imSubArray = imArray[goodFrames]
-    if not os.path.exists(os.path.join(path,'sampleMovs')):
-        os.makedirs(os.path.join(path,'sampleMovs'))
-    im_fileOut = os.path.join(path,'sampleMovs',name+'.mp4')
-    imageio.mimwrite(im_fileOut,imSubArray)
+    out_dir = os.path.join(path, 'sampleMovs')
+    os.makedirs(out_dir, exist_ok=True)
+    im_fileOut = os.path.join(out_dir, name + '.mp4')
+    
+    writer = imageio.get_writer(
+        im_fileOut,
+        format='FFMPEG',
+        fps=fps,                       # use the fps you computed from timestamps
+        codec='libx264rgb',
+        macro_block_size=1,
+        ffmpeg_params=['-crf', '0', '-qp', '0', '-preset', 'veryslow', '-pix_fmt', 'rgb24']
+    )
+    try:
+        for fr in imArray:  # write ALL frames (no cropping)
+            writer.append_data(np.repeat(fr[..., None], 3, axis=2))  # gray -> RGB
+    finally:
+        writer.close()
