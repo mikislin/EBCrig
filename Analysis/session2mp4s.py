@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 """
 Created on Fri Dec 31 09:14:13 2021
@@ -95,6 +96,7 @@ for file,name in zip(im_files,names):
     dt = np.diff(time)
     dt = dt[(dt > 0) & (dt < np.percentile(dt, 99.5))]
     fps = 1000.0 / np.median(dt) if dt.size else 30.0
+    print(f"[{name}] frames={len(imArray)}  fps≈{fps:.3f}  res={imArray.shape[2]}x{imArray.shape[1]}")
     
     # Apply CS/US stamps WITHOUT trimming any frames (all files have trials + ITIs)
     csTime = float(headers['preCSdur'])        # ms
@@ -128,16 +130,7 @@ for file,name in zip(im_files,names):
         ffmpeg_params=['-x265-params', 'lossless=1', '-preset', 'ultrafast']
     )
     try:
-        # Force output resolution (edit here if you change size later)
-        OUT_W, OUT_H = 640, 480  # must be ints; both even already
-    
-        in_h, in_w = imArray.shape[1], imArray.shape[2]
-        print(f"[{name}] frames={len(imArray)} fps≈{fps:.3f}  in={in_w}x{in_h} -> out={OUT_W}x{OUT_H}")
-    
-        for fr in imArray:
-            if (in_w, in_h) != (OUT_W, OUT_H):
-                # cv2.resize expects (width, height)
-                fr = cv2.resize(fr, (OUT_W, OUT_H), interpolation=cv2.INTER_CUBIC)
-            writer.append_data(fr)  # 2D uint8 grayscale
+        for fr in imArray:          # write ALL frames as grayscale
+            writer.append_data(fr)  # 2D uint8; ffmpeg converts to YUV internally
     finally:
         writer.close()
